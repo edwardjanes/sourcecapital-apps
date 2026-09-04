@@ -77,11 +77,13 @@
 ## Core Features
 
 ### 1. **Pitch Deck Analysis**
-- Upload PDF pitch decks (via `/upload` route)
+- Upload PDF pitch decks via canonical `/investment-score` → `/investment-score/upload` route
+- Lead capture via optional modal (name, email stored in sessionStorage)
 - Claude AI analyzes across 8 weighted dimensions (problem, solution, market, business model, traction, team, financials, competitive landscape)
 - Returns structured JSON score (0–100), verdict, and detailed section-by-section breakdown
 - Results stored in `deck_submissions` table
 - Analysis cached/viewable in dashboard
+- **Legacy routes** (`/upload`, `/investability-score/*`) redirect to canonical flow for backwards compatibility
 
 ### 2. **CRM Pipeline (Fundraiser-focused)**
 - Track investors in a funnel: researching → interested → meetings → committed → closed
@@ -254,8 +256,9 @@ profiles (
 ## Key User Flows
 
 ### Flow 1: Deck Analysis
-1. User logs in → redirects to `/dashboard`
-2. Click "Upload Deck" → `/upload` page
+1. User navigates to `/investment-score` (canonical deck analysis landing page)
+2. Optional: Fill LeadModal with name/email (stored in sessionStorage)
+3. Click "Continue to Upload" → `/investment-score/upload` page
 3. Select PDF → form submits to `POST /api/submit`
 4. Backend: validates PDF, compresses, saves to Supabase Storage, creates `deck_submissions` entry
 5. Returns `submission_id`, redirects to `/analysing/[id]`
