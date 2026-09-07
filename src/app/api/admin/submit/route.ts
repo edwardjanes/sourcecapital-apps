@@ -56,10 +56,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const compressed = await compressPdf(fileBuffer);
-      if (compressed.success && compressed.buffer) {
-        fileBuffer = compressed.buffer;
-        console.log(`[admin-submit] Compressed PDF: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.buffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
-      }
+      fileBuffer = compressed.data.buffer as ArrayBuffer;
+      console.log(`[admin-submit] Compressed PDF: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.compressedBytes / 1024 / 1024).toFixed(1)}MB`);
     } catch (compressErr) {
       console.warn("[admin-submit] PDF compression failed, continuing with original:", compressErr);
     }
