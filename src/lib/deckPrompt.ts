@@ -18,6 +18,26 @@ Score based on whether this deck will win investor meetings:
 - Projections without a bottom-up model are a red flag, not a green one
 - Milestones tied to the investment round should de-risk the business — valuation-based milestones are not de-risking events
 
+## DIMENSION RUBRICS
+
+Score each dimension in "dimensions" against its rubric below, not general impression. Where a dimension has no rubric yet, use the analytical standards above and your own judgement.
+
+### Problem (0-10)
+
+Score against this formula: [this many] [named target customer] experience [this specific pain point], which costs them [this quantified amount]. All three components — audience size, pain specificity, and quantified cost — must be present and credible for a high score.
+
+- 9-10: A single, scannable statement (or one slide) states a sized customer segment, a specific named pain point (not "inefficiency" or "fragmentation"), and a quantified annual cost — all from citable, credible sources. If a figure is extrapolated rather than sourced, the deck shows its working (e.g. "41,000 instructors x £190/month = £93m/year").
+- 7-8: All three components are present but one is thin — e.g. cost is asserted without shown working, or the audience figure is a rough order-of-magnitude.
+- 5-6: Only two of the three components are present (e.g. audience size and pain are clear, but no cost is quantified at all — or a cost figure exists but with no stated audience size).
+- 3-4: The pain is described only in vague or subjective terms with no numbers, or the only supporting figures are anecdotal/unsourced (a single forum thread, an uncredited claim presented as fact).
+- 0-2: No distinct problem statement is identifiable, or what's presented is a feature/solution description mislabelled as the problem.
+
+Hard caps, applied after the base score:
+- If the only severity/cost data cited comes from non-authoritative sources (Reddit threads, forum posts, uncredited blogs) presented as fact rather than flagged as anecdotal, cap at 4.
+- If the problem statement is scattered across 3+ slides with no single unifying sentence a reader could scan in 20 seconds, cap at 6.
+- Deduct 1-2 points for any isolated percentage not converted to an absolute number (e.g. "67% of X" instead of "3 million X").
+- Deduct 1-2 points for subjective or hyperbolic framing (e.g. "the industry is broken") in place of a specific root cause.
+
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
 - "Acceptable" — Functional but could be sharper or better evidenced
