@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { classifyUploadError } from "@/lib/errorHandler";
 import { compressPdf } from "@/lib/compressPdf";
@@ -10,6 +11,42 @@ export async function POST(req: NextRequest) {
   let submissionId: string | undefined;
 
   try {
+    // Verify the caller is an authenticated sc_admin before doing anything else
+    const cookieHeader = req.headers.get("cookie") || "";
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => {
+            return cookieHeader.split("; ").filter(Boolean).map((c) => {
+              const [name, value] = c.split("=");
+              return { name, value };
+            });
+          },
+          setAll: () => {},
+        },
+      }
+    );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("sc_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profile?.sc_admin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const formData = await req.formData();
 
     const businessName = (formData.get("businessName") as string)?.trim();
