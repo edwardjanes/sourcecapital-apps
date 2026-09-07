@@ -22,6 +22,8 @@ Score based on whether this deck will win investor meetings:
 
 Score each dimension in "dimensions" against its rubric below, not general impression. Where a dimension has no rubric yet, use the analytical standards above and your own judgement.
 
+Each rubric below has a base-score scale AND a set of hard caps. The hard caps are mandatory ceilings, not suggestions: after you arrive at a base score from the scale, check every hard cap for that dimension. If a deck triggers a hard cap, the final score for that dimension MUST NOT exceed the capped number, even if other aspects of the dimension are strong, even if you find the base-score reasoning compelling, and even if capping "feels" harsh. A capped dimension is not scored on a curve against the rest of the deck — the cap is absolute and independent of how the deck performs elsewhere.
+
 ### Problem (0-10)
 
 Score against this formula: [this many] [named target customer] experience [this specific pain point], which costs them [this quantified amount]. All three components — audience size, pain specificity, and quantified cost — must be present and credible for a high score.
@@ -32,9 +34,9 @@ Score against this formula: [this many] [named target customer] experience [this
 - 3-4: The pain is described only in vague or subjective terms with no numbers, or the only supporting figures are anecdotal/unsourced (a single forum thread, an uncredited claim presented as fact).
 - 0-2: No distinct problem statement is identifiable, or what's presented is a feature/solution description mislabelled as the problem.
 
-Hard caps, applied after the base score:
-- If the only severity/cost data cited comes from non-authoritative sources (Reddit threads, forum posts, uncredited blogs) presented as fact rather than flagged as anecdotal, cap at 4.
-- If the problem statement is scattered across 3+ slides with no single unifying sentence a reader could scan in 20 seconds, cap at 6.
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If the only severity/cost data cited comes from non-authoritative sources (Reddit threads, forum posts, uncredited blogs) presented as fact rather than flagged as anecdotal, the score MUST NOT exceed 4 — no exceptions.
+- If the problem statement is scattered across 3+ slides with no single unifying sentence a reader could scan in 20 seconds, the score MUST NOT exceed 6.
 - Deduct 1-2 points for any isolated percentage not converted to an absolute number (e.g. "67% of X" instead of "3 million X").
 - Deduct 1-2 points for subjective or hyperbolic framing (e.g. "the industry is broken") in place of a specific root cause.
 
@@ -48,10 +50,10 @@ Score against this formula: [sized audience] x [credible per-unit spend or value
 - 3-4: Market size is asserted as a single large number (e.g. "a £2bn opportunity") with no visible breakdown of audience x spend and no source.
 - 0-2: No market sizing is attempted, or the only figure given is an industry-wide number with no stated relevance to the addressable segment (e.g. citing global industry revenue for a single-city launch).
 
-Hard caps, applied after the base score:
-- If any input to the TAM calculation is uncited and unlabelled as an estimate, cap at 6.
-- If the audience and spend figures are both present on the same or adjacent slides but never multiplied into a combined total, cap at 8.
-- If the market size cited is not scoped to the addressable segment (wrong geography, wrong customer type, wrong stage of the funnel), cap at 4.
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If any input to the TAM calculation is uncited and unlabelled as an estimate, the score MUST NOT exceed 6 — no exceptions.
+- If the audience and spend figures are both present on the same or adjacent slides but never multiplied into a combined total, the score MUST NOT exceed 8.
+- If the market size cited is not scoped to the addressable segment (wrong geography, wrong customer type, wrong stage of the funnel), the score MUST NOT exceed 4.
 
 ### Business Model (0-10)
 
@@ -63,9 +65,9 @@ Score against this test: does the deck commit to one primary revenue mechanism a
 - 3-4: Two or more revenue mechanisms are presented as simultaneously active at launch (e.g. a per-transaction commission and a flat subscription fee on the same customer for the same activity) with no stated resolution of how they coexist.
 - 0-2: No coherent revenue mechanism is identifiable, or the mechanisms described are mutually exclusive as written (e.g. "free to join" stated alongside a mandatory joining fee).
 
-Hard caps, applied after the base score:
-- If two or more monetisation mechanisms are presented as concurrently active on the same customer without stating which is primary at launch, cap at 4.
-- If the unit economics (price, take rate, or margin) are never stated anywhere in the deck, cap at 5.
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If two or more monetisation mechanisms are presented as concurrently active on the same customer without stating which is primary at launch, the score MUST NOT exceed 4 — no exceptions, even if the unit economics for each individual mechanism are well-explained.
+- If the unit economics (price, take rate, or margin) are never stated anywhere in the deck, the score MUST NOT exceed 5.
 - If a later-phase revenue stream (e.g. data monetisation) bleeds into the core pitch narrative on slides other than where it's introduced, creating identity confusion about what the business actually is, deduct 1-2 points.
 
 ### Competition (0-10)
@@ -78,10 +80,10 @@ Score against this test: does the deck name specific, real competitors and state
 - 3-4: Only categories of alternatives are named (e.g. "traditional providers," "spreadsheets," "doing nothing") with zero specific, real competitors identified anywhere.
 - 0-2: No competitive landscape is presented at all, or the deck asserts "no direct competitors" / "no one else does this" without evidence of having searched.
 
-Hard caps, applied after the base score:
-- If zero specific, real competitors are named anywhere in the deck, cap at 2 regardless of how well-organised the category analysis is.
-- If the deck claims "no competition" or "first mover with no alternatives" without demonstrating a competitive search was conducted, cap at 2.
-- If named competitors are listed but the differentiation claim is identical across all of them (copy-pasted advantage), cap at 6.
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If zero specific, real competitors are named anywhere in the deck, the score MUST NOT exceed 2 — no exceptions, regardless of how well-organised or thoughtful the category-level analysis is. This is the single most common way this dimension is over-scored: do not let a well-written category discussion substitute for actual competitor names.
+- If the deck claims "no competition" or "first mover with no alternatives" without demonstrating a competitive search was conducted, the score MUST NOT exceed 2.
+- If named competitors are listed but the differentiation claim is identical across all of them (copy-pasted advantage), the score MUST NOT exceed 6.
 
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
