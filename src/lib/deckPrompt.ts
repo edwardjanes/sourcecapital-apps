@@ -85,6 +85,49 @@ HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition
 - If the deck claims "no competition" or "first mover with no alternatives" without demonstrating a competitive search was conducted, the score MUST NOT exceed 2.
 - If named competitors are listed but the differentiation claim is identical across all of them (copy-pasted advantage), the score MUST NOT exceed 6.
 
+### Solution (0-10)
+
+Score against this test: does every core feature map explicitly back to a component of the stated problem, and is there evidence beyond assertion (a working product, real functioning screenshots, a demo, or user testing) that the solution exists and works — not just a concept?
+
+- 9-10: Every core feature stated maps explicitly back to a specific component of the problem, and the deck shows evidence the solution exists and functions today (screenshots explicitly stated to be of live/working software, a demo link, or user testing results) rather than only mockups.
+- 7-8: Features map clearly to the problem, but the deck shows only concept renders or mockups, or the current build status (live, beta, in development) is never stated.
+- 5-6: Some features map to the stated problem, but others are unexplained additions with no tie back to any named pain point (scope creep).
+- 3-4: The solution is presented as a feature list disconnected from the problem statement — no explicit line is drawn from any specific pain point to any specific feature.
+- 0-2: No coherent solution is described, or what's shown is indistinguishable from existing alternatives with no stated point of differentiation.
+
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If product visuals are explicitly labelled as mockups, concept renders, or "for visual purposes only," and no working demo or genuinely functioning screenshots exist anywhere else in the deck, the score MUST NOT exceed 6.
+- If any core claimed feature (e.g. "guaranteed payments," "instant matching") implies an operational mechanism that is never explained anywhere in the deck, the score MUST NOT exceed 5 — no exceptions.
+
+### Team (0-10)
+
+Score against this test: does the team have direct, named, relevant experience to the single hardest execution risk in this specific business — not general credibility or an impressive-sounding CV — and does the deck explicitly connect that experience to the plan?
+
+- 9-10: At least one founder has direct, named experience in the exact domain or operating model this business requires (e.g. built or scaled a comparable marketplace, worked inside the specific industry), and the deck explicitly states how that experience de-risks the current plan.
+- 7-8: The team has relevant adjacent experience (e.g. consumer e-commerce for a consumer marketplace) that plausibly transfers and is explicitly named, but is not a direct match for the hardest execution risk in the business.
+- 5-6: The team has strong general credentials (brand, engineering, prior exits) but the deck never draws an explicit connection between that experience and the specific risks of this business.
+- 3-4: Team bios are vague — titles and past employers only, with no track record, scale, or outcome stated — or there is an obvious critical gap in composition (e.g. no technical co-founder for a technical product) that goes unaddressed.
+- 0-2: No team information is provided, or the team is a single generalist founder with no named relevant background at all.
+
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If the single hardest execution risk in the business (e.g. two-sided marketplace cold start, regulatory approval, hardware manufacturing, clinical validation) has zero team member with directly relevant, named experience, the score MUST NOT exceed 4 — no exceptions, even if the team is otherwise impressive.
+- If team bios list only job titles and past employers with no specifics of what was built, at what scale, or with what outcome, the score MUST NOT exceed 5.
+
+### Financials (0-10)
+
+Score against this test: does the deck present a reconciled, single-currency financial model that ties revenue and costs together into a derivable cash position or runway, with any valuation or ask amount justified against a stated basis?
+
+- 9-10: All figures are in a single reporting currency (or clearly converted), monthly or cumulative revenue and costs are shown together, a burn rate and cash runway tied to the raise amount can be directly derived, and any valuation is justified against a stated comparable, multiple, or milestone framework.
+- 7-8: Revenue and costs are both modelled with reasonable rigor but are not fully reconciled into a single burn/runway figure, or a valuation is given without justification while the rest of the model is otherwise sound.
+- 5-6: Only one side of the model (revenue or costs) is shown with any rigor; the other is vague, incomplete, or missing entirely.
+- 3-4: Figures are presented but cannot be reconciled into any derivable cash position — multiple currencies are mixed without conversion, or cost and revenue figures use incompatible time periods or assumptions.
+- 0-2: No meaningful financial model is presented, or the figures shown are internally contradictory.
+
+HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition below is met, this score CANNOT exceed the stated number under any circumstances, regardless of other strengths elsewhere in this dimension:
+- If costs or projections are shown in more than one currency without conversion to a single reporting currency, the score MUST NOT exceed 4 — no exceptions.
+- If no monthly or cumulative cash position, burn rate, or runway figure can be derived anywhere in the deck, the score MUST NOT exceed 5.
+- If a valuation or investment ask is stated with zero justification (no comparable transaction, no multiple, no milestone framework), the score MUST NOT exceed 6.
+
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
 - "Acceptable" — Functional but could be sharper or better evidenced
