@@ -38,6 +38,51 @@ Hard caps, applied after the base score:
 - Deduct 1-2 points for any isolated percentage not converted to an absolute number (e.g. "67% of X" instead of "3 million X").
 - Deduct 1-2 points for subjective or hyperbolic framing (e.g. "the industry is broken") in place of a specific root cause.
 
+### Market (0-10)
+
+Score against this formula: [sized audience] x [credible per-unit spend or value] = [total addressable market], with every input either sourced or shown as a transparent calculation. A market claim is only as strong as its weakest input.
+
+- 9-10: The deck states an audience size and a per-unit spend/value figure, multiplies them into a single headline TAM (or SAM/SOM breakdown), and every input is either cited to a named, checkable source or clearly labelled as the founder's own calculation with working shown.
+- 7-8: The audience size and per-unit figure are both present and credible, but the deck never multiplies them into a single TAM/SAM figure — the reader is left to do the maths themselves.
+- 5-6: Only one side of the equation is quantified and sourced (e.g. a credible audience size with no monetisable spend figure, or vice versa), or both are present but at least one figure has no source at all.
+- 3-4: Market size is asserted as a single large number (e.g. "a £2bn opportunity") with no visible breakdown of audience x spend and no source.
+- 0-2: No market sizing is attempted, or the only figure given is an industry-wide number with no stated relevance to the addressable segment (e.g. citing global industry revenue for a single-city launch).
+
+Hard caps, applied after the base score:
+- If any input to the TAM calculation is uncited and unlabelled as an estimate, cap at 6.
+- If the audience and spend figures are both present on the same or adjacent slides but never multiplied into a combined total, cap at 8.
+- If the market size cited is not scoped to the addressable segment (wrong geography, wrong customer type, wrong stage of the funnel), cap at 4.
+
+### Business Model (0-10)
+
+Score against this test: does the deck commit to one primary revenue mechanism at launch, with a clear, non-contradictory path for how money moves from customer to company? Multiple future revenue streams are fine if sequenced; multiple simultaneous mechanisms presented as all active at once are not.
+
+- 9-10: A single primary revenue mechanism is stated clearly (e.g. "15% commission per transaction"), the unit economics are shown (price point, take rate, resulting revenue per unit), and any additional revenue streams are explicitly sequenced as later phases with no contradiction to the primary model.
+- 7-8: A primary mechanism is identifiable and coherent, but unit economics are only partially shown, or a secondary stream is mentioned without being clearly labelled as later-phase.
+- 5-6: A primary mechanism exists but competes for attention with at least one other mechanism presented at the same level of priority, creating ambiguity about which applies at launch — without being a direct contradiction.
+- 3-4: Two or more revenue mechanisms are presented as simultaneously active at launch (e.g. a per-transaction commission and a flat subscription fee on the same customer for the same activity) with no stated resolution of how they coexist.
+- 0-2: No coherent revenue mechanism is identifiable, or the mechanisms described are mutually exclusive as written (e.g. "free to join" stated alongside a mandatory joining fee).
+
+Hard caps, applied after the base score:
+- If two or more monetisation mechanisms are presented as concurrently active on the same customer without stating which is primary at launch, cap at 4.
+- If the unit economics (price, take rate, or margin) are never stated anywhere in the deck, cap at 5.
+- If a later-phase revenue stream (e.g. data monetisation) bleeds into the core pitch narrative on slides other than where it's introduced, creating identity confusion about what the business actually is, deduct 1-2 points.
+
+### Competition (0-10)
+
+Score against this test: does the deck name specific, real competitors and state a defensible axis of differentiation against each — not just a category of alternatives.
+
+- 9-10: The deck names at least 2-3 specific, real, checkable competitors (by name, not category) operating in the same or adjacent space, and states a clear, specific axis of differentiation against each one individually (not one generic differentiation claim applied to all).
+- 7-8: Specific named competitors are given, but differentiation is argued only in general terms (e.g. "we're more modern" or "better UX") rather than a defensible structural or economic advantage.
+- 5-6: The deck names at least one specific real competitor, with the rest of the landscape described only by category.
+- 3-4: Only categories of alternatives are named (e.g. "traditional providers," "spreadsheets," "doing nothing") with zero specific, real competitors identified anywhere.
+- 0-2: No competitive landscape is presented at all, or the deck asserts "no direct competitors" / "no one else does this" without evidence of having searched.
+
+Hard caps, applied after the base score:
+- If zero specific, real competitors are named anywhere in the deck, cap at 2 regardless of how well-organised the category analysis is.
+- If the deck claims "no competition" or "first mover with no alternatives" without demonstrating a competitive search was conducted, cap at 2.
+- If named competitors are listed but the differentiation claim is identical across all of them (copy-pasted advantage), cap at 6.
+
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
 - "Acceptable" — Functional but could be sharper or better evidenced
