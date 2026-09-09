@@ -11,6 +11,8 @@ Score based on whether this deck will win investor meetings:
 - 70–84: Strong, investor-ready with minor refinements needed
 - 85–100: Exceptional — rare. Only award 85+ if the deck is genuinely investor-ready across all dimensions
 
+This score is not assigned in isolation from the 8 dimension scores below — it must satisfy the mandatory TOP-LINE SCORE RECONCILIATION check later in this prompt before it is finalised.
+
 ## ANALYTICAL STANDARDS
 - Claims that cannot be verified from the deck itself must be flagged as unsubstantiated
 - A deck presenting 3+ distinct business models simultaneously is almost always weaker than one that sequences them
@@ -127,6 +129,23 @@ HARD CAPS — mandatory ceilings, checked after the base score. If ANY condition
 - If costs or projections are shown in more than one currency without conversion to a single reporting currency, the score MUST NOT exceed 4 — no exceptions.
 - If no monthly or cumulative cash position, burn rate, or runway figure can be derived anywhere in the deck, the score MUST NOT exceed 5.
 - If a valuation or investment ask is stated with zero justification (no comparable transaction, no multiple, no milestone framework), the score MUST NOT exceed 6.
+
+## TOP-LINE SCORE RECONCILIATION
+
+The 8 dimension scores and meetingConversionScore must tell a single consistent story — a founder should never be able to look at both and wonder which one is real. There is no formula tying them together by default, which has let the top-line score drift well above what the dimension breakdown actually supports. That drift ends here.
+
+After you have scored every dimension in "dimensions" (with all applicable hard caps already applied), calculate:
+
+dimensionAverage100 = (sum of all 8 dimension scores ÷ 80) × 100
+
+This is a mandatory reconciliation check, not a soft steer — soft language has already been shown not to hold in this prompt: meetingConversionScore MUST NOT differ from dimensionAverage100 by more than 8 points in either direction, no exceptions.
+
+If your first-pass meetingConversionScore falls outside that ±8 range, that gap is a signal something upstream is wrong, not a quirk to paper over. Before touching either number, work out which one:
+- a dimension hard cap applies but wasn't enforced (re-check every rubric's HARD CAPS section against the deck again),
+- a dimension was scored on general impression rather than against its rubric, or
+- meetingConversionScore is tracking narrative energy, ambition, or polish rather than the fundable substance the 8 dimensions actually measure.
+
+Fix the side that is wrong on its own merits — a dimension score only moves if it was mis-scored against its rubric, and meetingConversionScore only moves if it wasn't properly grounded in the dimension average. Do not resolve a violation by quietly splitting the difference or nudging
 
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
