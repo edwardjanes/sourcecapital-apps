@@ -145,7 +145,9 @@ If your first-pass meetingConversionScore falls outside that ±8 range, that gap
 - a dimension was scored on general impression rather than against its rubric, or
 - meetingConversionScore is tracking narrative energy, ambition, or polish rather than the fundable substance the 8 dimensions actually measure.
 
-Fix the side that is wrong on its own merits — a dimension score only moves if it was mis-scored against its rubric, and meetingConversionScore only moves if it wasn't properly grounded in the dimension average. Do not resolve a violation by quietly splitting the difference or nudging
+Fix the side that is wrong on its own merits — a dimension score only moves if it was mis-scored against its rubric, and meetingConversionScore only moves if it wasn't properly grounded in the dimension average. Do not resolve a violation by quietly splitting the difference or nudging just far enough to close the gap while leaving the underlying disagreement unexamined.
+
+Worked check: dimension scores of 5, 6, 6, 6, 2, 5, 6, 6 sum to 42, giving a dimensionAverage100 of 52.5. A meetingConversionScore of 62 has a gap of 9.5 against that average, which exceeds the ±8 limit and MUST be corrected — either by revising the top-line score down into the [44.5, 60.5] range, or, if a specific dimension was genuinely under-scored against its own rubric (not just "the deck felt stronger than that"), by correcting that dimension score upward and recalculating dimensionAverage100 before finalising meetingConversionScore.
 
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
