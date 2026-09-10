@@ -1,0 +1,111 @@
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
+  body {
+    background: white;
+  }
+
+  @page {
+    size: A4;
+    margin: 2cm;
+  }
+
+  /* Print always renders the light palette, regardless of the viewer's OS theme */
+  :root {
+    --bg: #F6F7F9 !important;
+    --paper: #FFFFFF !important;
+    --paper-alt: #EEF1F4 !important;
+    --ink: #14181F !important;
+    --ink-muted: #5B6472 !important;
+    --ink-faint: #94A0AF !important;
+    --border: #E1E5EA !important;
+    --border-strong: #C7CEDA !important;
+    --accent: #0F8C7A !important;
+    --accent-ink: #FFFFFF !important;
+    --accent-soft: #E4F3F0 !important;
+    --gold: #C08A2E !important;
+    --gold-soft: #F7EDDA !important;
+  }
+
+  /* Hide chrome that has no place on the page */
+  .rpt-topbar,
+  .rpt-rail,
+  .rpt-export-btn {
+    display: none !important;
+  }
+
+  .rpt-shell {
+    display: block !important;
+    max-width: none !important;
+  }
+
+  .rpt-book {
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  /* One report-page per printed page */
+  .rpt-page {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    page-break-after: always;
+    page-break-inside: avoid;
+    max-width: none !important;
+  }
+  .rpt-page:last-of-type {
+    page-break-after: auto;
+  }
+
+  h1, h2, h3 {
+    page-break-after: avoid;
+    orphans: 3;
+    widows: 3;
+  }
+  p {
+    orphans: 2;
+    widows: 2;
+  }
+
+  table {
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+
+  svg {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+
+  /* The P&L / Cash Flow tables have 8 columns (label + 7 forecast years) and rely on
+     .rpt-table-scroll's horizontal scrollbar on screen -- there's no scrolling in print,
+     so anything past the container edge was silently clipped instead of wrapping to a new
+     page. Shrink the page padding and table type size so the full table fits the printable
+     width instead of overflowing it. */
+  .rpt-page {
+    padding: 28px 24px !important;
+  }
+  .rpt-table-scroll {
+    overflow: visible !important;
+  }
+  .rpt-table {
+    font-size: 9.5px !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+  .rpt-table th,
+  .rpt-table td {
+    padding: 5px 5px !important;
+    white-space: normal !important;
+    word-break: break-word;
+  }
+}
