@@ -15,13 +15,13 @@ describe("Valuation Low/High Bounds Formula", () => {
   it("computes low bound as weighted × 0.904", () => {
     const weighted = 3775562;
     const low = weighted * LOW_BOUND_FACTOR;
-    expect(low).toBeCloseTo(3413889, -2);
+    expect(low).toBeCloseTo(3413108.048, -2);
   });
 
   it("computes high bound as weighted × 1.096", () => {
     const weighted = 3775562;
     const high = weighted * HIGH_BOUND_FACTOR;
-    expect(high).toBeCloseTo(4137235, -2);
+    expect(high).toBeCloseTo(4138015.952, -2);
   });
 
   it("maintains symmetric ±9.6% spread around center", () => {
@@ -32,7 +32,7 @@ describe("Valuation Low/High Bounds Formula", () => {
     const upperDistance = high - weighted;
 
     expect(lowerDistance).toBeCloseTo(upperDistance, 2);
-    expect(lowerDistance / weighted).toBeCloseTo(0.096 / 2, 4);
+    expect(lowerDistance / weighted).toBeCloseTo(0.096, 4);
   });
 
   it("low bound is always less than center, high bound greater", () => {
@@ -54,8 +54,8 @@ describe("Valuation Low/High Bounds Formula", () => {
     const lowerPercent = (weighted - low) / weighted;
     const upperPercent = (high - weighted) / weighted;
 
-    expect(lowerPercent).toBeCloseTo(0.096 / 2, 4);
-    expect(upperPercent).toBeCloseTo(0.096 / 2, 4);
+    expect(lowerPercent).toBeCloseTo(0.096, 4);
+    expect(upperPercent).toBeCloseTo(0.096, 4);
   });
 
   it("handles edge case: zero valuation", () => {

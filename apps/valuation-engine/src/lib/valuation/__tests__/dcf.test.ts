@@ -2,11 +2,25 @@ import { expect, it, describe } from "vitest";
 import { computeDcfShared } from "../dcf";
 import { FcfeYear } from "../types";
 
+// Only yearOffset and fcfe are read by computeDcfShared; the remaining
+// FcfeYear fields are irrelevant to these tests and filled with zeros.
+const fcfeYear = (yearOffset: number, fcfe: number): FcfeYear => ({
+  yearOffset,
+  fcfe,
+  ebitda: 0,
+  ebit: 0,
+  ebt: 0,
+  netIncome: 0,
+  da: 0,
+  deltaWc: 0,
+  deltaDebt: 0,
+});
+
 describe("DCF Shared Framework", () => {
   const baselineYears: FcfeYear[] = [
-    { yearOffset: 1, fcfe: 100000 },
-    { yearOffset: 2, fcfe: 150000 },
-    { yearOffset: 3, fcfe: 200000 },
+    fcfeYear(1, 100000),
+    fcfeYear(2, 150000),
+    fcfeYear(3, 200000),
   ];
 
   it("computes valuation with positive cash flows", () => {
@@ -23,8 +37,8 @@ describe("DCF Shared Framework", () => {
 
   it("handles negative cash flows", () => {
     const negativeYears: FcfeYear[] = [
-      { yearOffset: 1, fcfe: -100000 },
-      { yearOffset: 2, fcfe: 300000 },
+      fcfeYear(1, -100000),
+      fcfeYear(2, 300000),
     ];
     const result = computeDcfShared(negativeYears, 2000000, 0.15, 0.25);
     expect(result.valuation).toBeGreaterThan(0);
@@ -48,7 +62,7 @@ describe("DCF Shared Framework", () => {
   });
 
   it("handles single year forecast", () => {
-    const singleYear: FcfeYear[] = [{ yearOffset: 1, fcfe: 100000 }];
+    const singleYear: FcfeYear[] = [fcfeYear(1, 100000)];
     const result = computeDcfShared(singleYear, 500000, 0.1, 0.2);
     expect(result.valuation).toBeGreaterThan(0);
   });

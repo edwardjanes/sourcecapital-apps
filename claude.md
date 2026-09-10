@@ -4,6 +4,38 @@
 
 ---
 
+## Recent Updates (September 2026)
+
+### Completed
+- ✅ **Comprehensive Scoring Rubrics & Hard Caps**: Formalized 8-dimension evaluation rules
+  - Problem: size × pain × cost formula with hard caps for anecdotal-only severity
+  - Market: TAM formula (audience × per-unit spend) with caps for missing inputs or wrong scope
+  - Business Model: single primary revenue mechanism with caps for multi-currency or missing unit economics
+  - Competition: named-competitor requirement (not categories) with ≤2 score cap if zero specific competitors named
+  - Solution: feature-to-problem mapping + working product evidence, capped if only mockups shown
+  - Team: direct relevant experience to hardest execution risk, capped if zero team members have that experience
+  - Financials: reconciled single-currency model with derivable runway, capped for mixed currencies or unjustified valuation
+  - All hard caps are mandatory ceilings — independent of other strengths in that dimension
+
+- ✅ **TOP-LINE SCORE RECONCILIATION**: Mandatory alignment between dimension scores and meetingConversionScore
+  - Formalized ±8 point tolerance band: dimensionAverage100 = (sum of 8 scores ÷ 80) × 100
+  - Worked-check example: dimension scores [5,6,6,6,2,5,6,6] → 52.5 average; 62 reported score requires correction
+  - Prevents score drift above what dimension breakdown actually supports
+  - Guides diagnostic reasoning when scores diverge (re-check hard caps, dimension vs. narrative scoring, methodology)
+
+- ✅ **Server-Side Admin Auth Check**: `/api/admin/submit` now requires sc_admin verification
+  - Mirrors pattern from `/api/raise-listing/admin/listings/[id]/approve`
+  - Reads session from cookies via @supabase/ssr
+  - Returns 401 for no session, 403 for logged-in non-admin
+  - Prevents unauthorized direct URL access to admin submission endpoint
+
+- ✅ **Admin PDF Compression Fix**: Corrected type errors in admin deck submission
+  - Fixed incorrect property access: `compressed.success` → `compressed.data.buffer as ArrayBuffer`
+  - Fixed logging: `compressed.buffer.byteLength` → `compressed.compressedBytes`
+  - Properly typed CompressResult interface usage in API endpoint
+
+---
+
 ## Recent Updates (August 2026)
 
 ### Completed
@@ -77,11 +109,13 @@
 ## Core Features
 
 ### 1. **Pitch Deck Analysis**
-- Upload PDF pitch decks (via `/upload` route)
+- Upload PDF pitch decks via canonical `/investment-score` → `/investment-score/upload` route
+- Lead capture via optional modal (name, email stored in sessionStorage)
 - Claude AI analyzes across 8 weighted dimensions (problem, solution, market, business model, traction, team, financials, competitive landscape)
 - Returns structured JSON score (0–100), verdict, and detailed section-by-section breakdown
 - Results stored in `deck_submissions` table
 - Analysis cached/viewable in dashboard
+- **Legacy routes** (`/upload`, `/investability-score/*`) redirect to canonical flow for backwards compatibility
 
 ### 2. **CRM Pipeline (Fundraiser-focused)**
 - Track investors in a funnel: researching → interested → meetings → committed → closed
@@ -254,8 +288,9 @@ profiles (
 ## Key User Flows
 
 ### Flow 1: Deck Analysis
-1. User logs in → redirects to `/dashboard`
-2. Click "Upload Deck" → `/upload` page
+1. User navigates to `/investment-score` (canonical deck analysis landing page)
+2. Optional: Fill LeadModal with name/email (stored in sessionStorage)
+3. Click "Continue to Upload" → `/investment-score/upload` page
 3. Select PDF → form submits to `POST /api/submit`
 4. Backend: validates PDF, compresses, saves to Supabase Storage, creates `deck_submissions` entry
 5. Returns `submission_id`, redirects to `/analysing/[id]`

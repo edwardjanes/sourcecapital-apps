@@ -25,10 +25,8 @@ export default function AdminUploadPage() {
   const [isChecking, setIsChecking] = useState(true);
 
   const [formData, setFormData] = useState({
-    email: "",
-    firstName: "",
-    lastName: "",
     businessName: "",
+    website: "",
     country: "",
   });
 
@@ -97,7 +95,7 @@ export default function AdminUploadPage() {
     setError("");
     setSuccessId("");
 
-    if (!formData.email || !formData.firstName || !formData.businessName || !formData.country || !file) {
+    if (!formData.businessName || !formData.country || !file) {
       setError("Please fill in all required fields and select a PDF");
       return;
     }
@@ -106,10 +104,8 @@ export default function AdminUploadPage() {
 
     try {
       const submitFormData = new FormData();
-      submitFormData.append("email", formData.email);
-      submitFormData.append("firstName", formData.firstName);
-      submitFormData.append("lastName", formData.lastName);
       submitFormData.append("businessName", formData.businessName);
+      submitFormData.append("website", formData.website);
       submitFormData.append("country", formData.country);
       submitFormData.append("deck", file);
 
@@ -118,7 +114,17 @@ export default function AdminUploadPage() {
         body: submitFormData,
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      console.log("API response:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error("Failed to parse JSON:", parseErr, "Response was:", text);
+        setError(`Server error: ${text.substring(0, 150)}`);
+        return;
+      }
 
       if (!response.ok) {
         setError(data.message || data.error || "Failed to upload deck");
@@ -126,7 +132,7 @@ export default function AdminUploadPage() {
       }
 
       setSuccessId(data.id);
-      setFormData({ email: "", firstName: "", lastName: "", businessName: "", country: "" });
+      setFormData({ businessName: "", website: "", country: "" });
       setFile(null);
 
       // Auto-trigger analysis
@@ -183,7 +189,7 @@ export default function AdminUploadPage() {
             <p style={{ color: "#4ade80", marginBottom: "8px", fontWeight: "600" }}>✓ Upload successful!</p>
             <p style={{ color: "#888888", marginBottom: "12px" }}>Submission ID: <code style={{ color: "#4ade80" }}>{successId}</code></p>
             <p style={{ color: "#888888", fontSize: "14px" }}>
-              Analysis is running. Results will be pushed to GHL only (no customer emails sent).
+              Analysis is running. You can view results below.
             </p>
             <a
               href={`/investment-score/results/${successId}`}
@@ -220,80 +226,6 @@ export default function AdminUploadPage() {
           borderRadius: "8px",
           padding: "24px",
         }}>
-          {/* Email */}
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", color: "#FFFFFF", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>
-              Email *
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="customer@example.com"
-              required
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                backgroundColor: "#0A0A0A",
-                border: "1px solid #2a2a2a",
-                borderRadius: "6px",
-                color: "#FFFFFF",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          {/* First Name */}
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", color: "#FFFFFF", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>
-              First Name *
-            </label>
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleInputChange}
-              placeholder="John"
-              required
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                backgroundColor: "#0A0A0A",
-                border: "1px solid #2a2a2a",
-                borderRadius: "6px",
-                color: "#FFFFFF",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          {/* Last Name */}
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", color: "#FFFFFF", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>
-              Last Name
-            </label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleInputChange}
-              placeholder="Doe"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                backgroundColor: "#0A0A0A",
-                border: "1px solid #2a2a2a",
-                borderRadius: "6px",
-                color: "#FFFFFF",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
           {/* Business Name */}
           <div style={{ marginBottom: "20px" }}>
             <label style={{ display: "block", color: "#FFFFFF", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>
@@ -306,6 +238,30 @@ export default function AdminUploadPage() {
               onChange={handleInputChange}
               placeholder="Acme Inc"
               required
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                backgroundColor: "#0A0A0A",
+                border: "1px solid #2a2a2a",
+                borderRadius: "6px",
+                color: "#FFFFFF",
+                fontSize: "14px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Website */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ display: "block", color: "#FFFFFF", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>
+              Website
+            </label>
+            <input
+              type="url"
+              name="website"
+              value={formData.website}
+              onChange={handleInputChange}
+              placeholder="https://acme.com"
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -397,7 +353,7 @@ export default function AdminUploadPage() {
         </form>
 
         <p style={{ color: "#666666", fontSize: "12px", marginTop: "16px", textAlign: "center" }}>
-          This page is for internal use only. Analysis results will automatically sync to GHL.
+          This page is for internal use only.
         </p>
       </div>
     </div>
