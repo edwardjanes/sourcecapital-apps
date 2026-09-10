@@ -4,6 +4,38 @@
 
 ---
 
+## Recent Updates (September 2026)
+
+### Completed
+- ✅ **Comprehensive Scoring Rubrics & Hard Caps**: Formalized 8-dimension evaluation rules
+  - Problem: size × pain × cost formula with hard caps for anecdotal-only severity
+  - Market: TAM formula (audience × per-unit spend) with caps for missing inputs or wrong scope
+  - Business Model: single primary revenue mechanism with caps for multi-currency or missing unit economics
+  - Competition: named-competitor requirement (not categories) with ≤2 score cap if zero specific competitors named
+  - Solution: feature-to-problem mapping + working product evidence, capped if only mockups shown
+  - Team: direct relevant experience to hardest execution risk, capped if zero team members have that experience
+  - Financials: reconciled single-currency model with derivable runway, capped for mixed currencies or unjustified valuation
+  - All hard caps are mandatory ceilings — independent of other strengths in that dimension
+
+- ✅ **TOP-LINE SCORE RECONCILIATION**: Mandatory alignment between dimension scores and meetingConversionScore
+  - Formalized ±8 point tolerance band: dimensionAverage100 = (sum of 8 scores ÷ 80) × 100
+  - Worked-check example: dimension scores [5,6,6,6,2,5,6,6] → 52.5 average; 62 reported score requires correction
+  - Prevents score drift above what dimension breakdown actually supports
+  - Guides diagnostic reasoning when scores diverge (re-check hard caps, dimension vs. narrative scoring, methodology)
+
+- ✅ **Server-Side Admin Auth Check**: `/api/admin/submit` now requires sc_admin verification
+  - Mirrors pattern from `/api/raise-listing/admin/listings/[id]/approve`
+  - Reads session from cookies via @supabase/ssr
+  - Returns 401 for no session, 403 for logged-in non-admin
+  - Prevents unauthorized direct URL access to admin submission endpoint
+
+- ✅ **Admin PDF Compression Fix**: Corrected type errors in admin deck submission
+  - Fixed incorrect property access: `compressed.success` → `compressed.data.buffer as ArrayBuffer`
+  - Fixed logging: `compressed.buffer.byteLength` → `compressed.compressedBytes`
+  - Properly typed CompressResult interface usage in API endpoint
+
+---
+
 ## Recent Updates (August 2026)
 
 ### Completed
