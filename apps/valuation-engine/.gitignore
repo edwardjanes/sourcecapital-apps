@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env.local
+.env*.local
+.DS_Store
+*.pem
+.vercel
+out/
+build/
+dist/
+.turbo/
+.swc
+.turbopack
