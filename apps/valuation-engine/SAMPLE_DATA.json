@@ -1,0 +1,157 @@
+{
+  "company": {
+    "id": "novacloud-test",
+    "name": "NovaCloud Systems",
+    "country": "Germany",
+    "industry": "Application Software",
+    "stage": "Development",
+    "description": "Test company used for validating Scorecard and Checklist formulas against Equidam reference report",
+    "founders_count": 3,
+    "employees_count": 12
+  },
+  "checklist_test": {
+    "max_valuation": 12367664,
+    "criteria": {
+      "team": {
+        "weight": 0.30,
+        "score": 0.55,
+        "achieved_value": 2040665
+      },
+      "idea": {
+        "weight": 0.20,
+        "score": 0.55,
+        "achieved_value": 1360443
+      },
+      "product_ip": {
+        "weight": 0.15,
+        "score": 0.0556,
+        "achieved_value": 103064
+      },
+      "relationships": {
+        "weight": 0.15,
+        "score": 0.50,
+        "achieved_value": 927575
+      },
+      "operating_stage": {
+        "weight": 0.20,
+        "score": 0.05,
+        "achieved_value": 123677
+      }
+    },
+    "expected_valuation": 4555423,
+    "formula": "Valuation = Σ(weight_i × score_i × MaxValuation)"
+  },
+  "scorecard_test": {
+    "average_pre_money_valuation": 4164857,
+    "criteria": {
+      "team": {
+        "weight": 0.30,
+        "score": 0.0,
+        "contribution": 0
+      },
+      "opportunity": {
+        "weight": 0.25,
+        "score": 0.5,
+        "contribution": 519357
+      },
+      "competitive_env": {
+        "weight": 0.10,
+        "score": 0.25,
+        "contribution": 104121
+      },
+      "product_ip": {
+        "weight": 0.15,
+        "score": 0.25,
+        "contribution": 156182
+      },
+      "partnerships": {
+        "weight": 0.10,
+        "score": 0.375,
+        "contribution": 156182
+      },
+      "funding_required": {
+        "weight": 0.10,
+        "score": 0.5,
+        "contribution": 208243
+      }
+    },
+    "sum_weighted_score": 1.275,
+    "expected_valuation": 5310193,
+    "formula": "Valuation = AvgPreMoneyValuation × (1 + Σ(weight_i × score_i))",
+    "calculation_breakdown": "4164857 × (1 + 1.275) = 4164857 × 2.275 = 5,310,193"
+  },
+  "financials": {
+    "year_offset_minus_1": {
+      "revenue": 500000,
+      "cogs": 150000,
+      "salaries": 200000,
+      "other_opex": 50000,
+      "total_da": 30000,
+      "interest": 5000,
+      "taxes": 0,
+      "receivables": 75000,
+      "inventory": 25000,
+      "payables": 40000,
+      "capex": 20000,
+      "debt": 100000,
+      "fundraising_plan": 0
+    },
+    "year_offset_0": {
+      "revenue": 750000,
+      "cogs": 225000,
+      "salaries": 250000,
+      "other_opex": 75000,
+      "total_da": 40000,
+      "interest": 5000,
+      "taxes": 0,
+      "receivables": 112500,
+      "inventory": 37500,
+      "payables": 60000,
+      "capex": 30000,
+      "debt": 150000,
+      "fundraising_plan": 500000
+    },
+    "year_offset_1": {
+      "revenue": 1200000,
+      "cogs": 360000,
+      "salaries": 350000,
+      "other_opex": 120000,
+      "total_da": 50000,
+      "interest": 7500,
+      "taxes": 0,
+      "receivables": 180000,
+      "inventory": 60000,
+      "payables": 96000,
+      "capex": 50000,
+      "debt": 200000,
+      "fundraising_plan": 0
+    }
+  },
+  "country_reference": {
+    "name": "Germany",
+    "avg_seed_pre_money": 2500000,
+    "risk_free_rate": 0.0245,
+    "equity_risk_premium": 0.065
+  },
+  "industry_reference": {
+    "name": "Application Software",
+    "beta": 1.2,
+    "ebitda_multiple": 12.12,
+    "revenue_multiple": 5.5
+  },
+  "stage_weights": {
+    "stage": "Development",
+    "scorecard": 0.30,
+    "checklist": 0.30,
+    "vc_method": 0.16,
+    "dcf_ltg": 0.12,
+    "dcf_multiple": 0.12,
+    "simple_multiples": 0.0
+  },
+  "test_notes": {
+    "checklist_validation": "Reproduces Equidam NovaCloud report figure of $4,555,423 ✓",
+    "scorecard_validation": "Reproduces Equidam NovaCloud report figure of $5,310,193 ✓",
+    "source": "Equidam methodology whitepaper and NovaCloud Systems case study",
+    "reference_date": "2025-01-15"
+  }
+}
