@@ -27,6 +27,12 @@ export default function UploadPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [lead, setLead] = useState<Lead | null>(null);
+  // Only true when we arrived via a bare ?email= link (e.g. the homepage
+  // hero) rather than the /investment-score LeadModal, which already
+  // collects first/last name before sessionStorage is set.
+  const [needsNameInput, setNeedsNameInput] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [website, setWebsite] = useState("");
   const [country, setCountry] = useState("");
@@ -37,11 +43,26 @@ export default function UploadPage() {
 
   useEffect(() => {
     const raw = sessionStorage.getItem("deckscore-lead");
-    if (!raw) {
-      router.replace("/investment-score");
+    if (raw) {
+      const parsed: Lead = JSON.parse(raw);
+      setLead(parsed);
+      setFirstName(parsed.firstName);
+      setLastName(parsed.lastName);
+      setNeedsNameInput(false);
       return;
     }
-    setLead(JSON.parse(raw));
+
+    // Arrived from an external email-capture form (e.g. the homepage hero)
+    // with just an email — collect the name here instead of bouncing back
+    // to /investment-score.
+    const emailParam = new URLSearchParams(window.location.search).get("email");
+    if (emailParam) {
+      setLead({ firstName: "", lastName: "", email: emailParam });
+      setNeedsNameInput(true);
+      return;
+    }
+
+    router.replace("/investment-score");
   }, [router]);
 
   function handleFileDrop(e: React.DragEvent) {
@@ -68,6 +89,7 @@ export default function UploadPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) { setError("Please enter your first and last name."); return; }
     if (!file) { setError("Please upload your pitch deck PDF."); return; }
     if (!country) { setError("Please select your country."); return; }
     if (file.size > 20 * 1024 * 1024) { setError("File must be under 20MB."); return; }
@@ -76,8 +98,8 @@ export default function UploadPage() {
     setError("");
 
     const fd = new FormData();
-    fd.append("firstName", lead!.firstName);
-    fd.append("lastName", lead!.lastName);
+    fd.append("firstName", firstName.trim());
+    fd.append("lastName", lastName.trim());
     fd.append("email", lead!.email);
     fd.append("businessName", businessName);
     fd.append("website", website);
@@ -145,10 +167,44 @@ export default function UploadPage() {
           Tell us about your business
         </h1>
         <p style={{ fontSize: "14px", color: "#64748B", marginBottom: "28px" }}>
-          Hi {lead.firstName} — a few quick details before we analyse your deck.
+          {needsNameInput
+            ? "A few quick details before we analyse your deck."
+            : `Hi ${firstName} — a few quick details before we analyse your deck.`}
         </p>
 
         <form onSubmit={handleSubmit}>
+          {/* Hidden email carried through from the marketing site / LeadModal */}
+          <input type="hidden" name="email" value={lead.email} readOnly />
+
+          {/* First / Last name — only asked here when we didn't already
+              collect it via the LeadModal (e.g. arrived from ?email=) */}
+          {needsNameInput && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div>
+                <label style={labelStyle}>First name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Jane"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Last name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Business Name */}
           <div style={{ marginBottom: "16px" }}>
             <label style={labelStyle}>Business name *</label>
