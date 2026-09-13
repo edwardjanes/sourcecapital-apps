@@ -13,7 +13,10 @@ Sentry.init({
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
+  // Don't send user PII (IPs, cookies, request data) -- this app handles company financials
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  sendDefaultPii: false,
+
+  // Shared Sentry project with deck-analysis-app -- tag events so they can be filtered apart
+  initialScope: { tags: { app: "valuation-engine" } },
 });

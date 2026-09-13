@@ -115,7 +115,7 @@ describe("VC Method", () => {
     const industryMultiple = 2.0; // SaaS multiple
     const requiredRoi = 0.6; // 60% IRR target
     const projectionYears = 5;
-    const capitalRaised = 1500000; // Prior funding
+    const capitalRaised = 250000; // Prior funding
 
     const result = computeVcMethod(
       terminalYearMetricValue,
@@ -125,7 +125,18 @@ describe("VC Method", () => {
       capitalRaised
     );
 
+    // Exit 4.8M discounted over 5 years at 60% ≈ 457,764, less 250k raised
+    const expected = (2400000 * 2.0) / Math.pow(1.6, 5) - capitalRaised;
+    expect(result.valuation).toBeCloseTo(expected, 2);
     expect(result.valuation).toBeGreaterThan(0);
     expect(result.valuation).toBeLessThan(10000000); // Reasonable range
+  });
+
+  it("clamps to zero when capital raised exceeds the discounted exit value", () => {
+    // Same scenario but with 1.5M raised: 457,764 − 1,500,000 < 0
+    const result = computeVcMethod(2400000, 2.0, 0.6, 5, 1500000);
+
+    expect(result.discountedExitValue).toBeLessThan(1500000);
+    expect(result.valuation).toBe(0);
   });
 });

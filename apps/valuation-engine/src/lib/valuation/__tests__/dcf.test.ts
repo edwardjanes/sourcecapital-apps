@@ -2,12 +2,22 @@ import { expect, it, describe } from "vitest";
 import { computeDcfShared } from "../dcf";
 import { FcfeYear } from "../types";
 
+// computeDcfShared only reads yearOffset and fcfe; the other FcfeYear fields are zero-filled so the
+// fixtures satisfy the type without implying any particular P&L breakdown
+const fy = (yearOffset: number, fcfe: number): FcfeYear => ({
+  yearOffset,
+  fcfe,
+  ebitda: 0,
+  ebit: 0,
+  ebt: 0,
+  netIncome: 0,
+  da: 0,
+  deltaWc: 0,
+  deltaDebt: 0,
+});
+
 describe("DCF Shared Framework", () => {
-  const baselineYears: FcfeYear[] = [
-    { yearOffset: 1, fcfe: 100000 },
-    { yearOffset: 2, fcfe: 150000 },
-    { yearOffset: 3, fcfe: 200000 },
-  ];
+  const baselineYears: FcfeYear[] = [fy(1, 100000), fy(2, 150000), fy(3, 200000)];
 
   const defaultSurvivalRates = [0.8869, 0.7945, 0.7164, 0.6487, 0.5891, 0.5357];
 
@@ -42,9 +52,9 @@ describe("DCF Shared Framework", () => {
 
   it("handles negative cash flows (J-curve growth)", () => {
     const negativeYears: FcfeYear[] = [
-      { yearOffset: 1, fcfe: -100000 }, // Investment year
-      { yearOffset: 2, fcfe: 50000 },
-      { yearOffset: 3, fcfe: 300000 }, // Strong recovery
+      fy(1, -100000), // Investment year
+      fy(2, 50000),
+      fy(3, 300000), // Strong recovery
     ];
 
     const result = computeDcfShared(
@@ -59,10 +69,7 @@ describe("DCF Shared Framework", () => {
   });
 
   it("clamps valuation to zero when all flows are negative", () => {
-    const negativeYears: FcfeYear[] = [
-      { yearOffset: 1, fcfe: -100000 },
-      { yearOffset: 2, fcfe: -50000 },
-    ];
+    const negativeYears: FcfeYear[] = [fy(1, -100000), fy(2, -50000)];
 
     const result = computeDcfShared(
       negativeYears,
@@ -99,7 +106,7 @@ describe("DCF Shared Framework", () => {
     );
   });
 
-  it("includes non-operating cash in final valuation", () => {
+  it("adds non-operating cash after the illiquidity discount", () => {
     const nonOpCash = 500000;
 
     const resultWithoutNonOp = computeDcfShared(
@@ -118,16 +125,14 @@ describe("DCF Shared Framework", () => {
       nonOpCash
     );
 
+    // Value = (ΣFCF + TV) × (1 − illiquidity) + NonOperatingCash -- cash on the balance sheet isn't
+    // illiquid, so it's added in full rather than discounted with the operating value
     expect(resultWithNonOp.nonOperatingCash).toBe(nonOpCash);
-    expect(resultWithNonOp.valuation).toBeGreaterThan(resultWithoutNonOp.valuation);
-    expect(resultWithNonOp.valuation - resultWithoutNonOp.valuation).toBeCloseTo(
-      nonOpCash * (1 - 0.25),
-      2
-    );
+    expect(resultWithNonOp.valuation - resultWithoutNonOp.valuation).toBeCloseTo(nonOpCash, 2);
   });
 
   it("handles edge case: single year forecast", () => {
-    const singleYear: FcfeYear[] = [{ yearOffset: 1, fcfe: 100000 }];
+    const singleYear: FcfeYear[] = [fy(1, 100000)];
 
     const result = computeDcfShared(
       singleYear,
@@ -148,9 +153,13 @@ describe("DCF Shared Framework", () => {
       0.25
     );
 
-    // Without discounting, cash flows should be sum of actual values
-    const rawSum = baselineYears.reduce((sum, y) => sum + y.fcfe, 0);
-    expect(result.discountedFcfSum).toBeCloseTo(rawSum, 1);
+    // Without discounting, the sum is just the survival-weighted cash flows (default survival rates apply)
+    const survivalWeightedSum = baselineYears.reduce(
+      (sum, y) => sum + y.fcfe * defaultSurvivalRates[y.yearOffset - 1],
+      0
+    );
+    expect(result.discountedFcfSum).toBeCloseTo(survivalWeightedSum, 2);
+    expect(result.discountedTerminalValue).toBe(1000000);
   });
 
   it("handles edge case: zero terminal value", () => {
@@ -174,9 +183,15 @@ describe("DCF Shared Framework", () => {
       0.25
     );
 
-    // With such high discounting, most value should be zeroed
-    expect(result.valuation).toBeGreaterThanOrEqual(0);
-    expect(result.valuation).toBeLessThan(100000);
+    // Terminal value is discounted over 3 years at 200%: 5M / 3^3
+    expect(result.discountedTerminalValue).toBeCloseTo(5000000 / 27, 2);
+    // The same 5M terminal value undiscounted (0% rate) must be worth far more
+    const undiscounted = computeDcfShared(baselineYears, 5000000, 0.0, 0.25);
+    expect(result.valuation).toBeLessThan(undiscounted.valuation * 0.05);
+    expect(result.valuation).toBeCloseTo(
+      (result.discountedFcfSum + result.discountedTerminalValue) * (1 - 0.25),
+      2
+    );
   });
 
   it("uses survival rates when provided", () => {
@@ -206,11 +221,11 @@ describe("DCF Shared Framework", () => {
     const shortSurvivalRates = [0.85, 0.75]; // Only 2 years
 
     const multiYearForecast: FcfeYear[] = [
-      { yearOffset: 1, fcfe: 100000 },
-      { yearOffset: 2, fcfe: 100000 },
-      { yearOffset: 3, fcfe: 100000 },
-      { yearOffset: 4, fcfe: 100000 },
-      { yearOffset: 5, fcfe: 100000 },
+      fy(1, 100000),
+      fy(2, 100000),
+      fy(3, 100000),
+      fy(4, 100000),
+      fy(5, 100000),
     ];
 
     const result = computeDcfShared(
@@ -229,9 +244,9 @@ describe("DCF Shared Framework", () => {
   it("produces realistic valuation for NovaCloud-like development stage company", () => {
     // Based on NovaCloud Systems scenario
     const forecastYears: FcfeYear[] = [
-      { yearOffset: 1, fcfe: 250000 }, // Year 1 FCFE
-      { yearOffset: 2, fcfe: 800000 }, // Year 2 FCFE (growth)
-      { yearOffset: 3, fcfe: 1200000 }, // Year 3 FCFE
+      fy(1, 250000), // Year 1 FCFE
+      fy(2, 800000), // Year 2 FCFE (growth)
+      fy(3, 1200000), // Year 3 FCFE
     ];
 
     const terminalValue = 3000000; // Terminal value estimate
@@ -254,8 +269,8 @@ describe("DCF Shared Framework", () => {
 
   it("computes terminal value discount factor correctly", () => {
     const fcfeYears: FcfeYear[] = [
-      { yearOffset: 1, fcfe: 100000 },
-      { yearOffset: 3, fcfe: 200000 }, // Non-sequential offset
+      fy(1, 100000),
+      fy(3, 200000), // Non-sequential offset
     ];
 
     const result = computeDcfShared(
