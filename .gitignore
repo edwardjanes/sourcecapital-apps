@@ -19,3 +19,6 @@ node_modules/
 *.pdf
 *.xlsx
 package-lock.json
+
+# build cache
+apps/valuation-engine/tsconfig.tsbuildinfo
