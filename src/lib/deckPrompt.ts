@@ -11,7 +11,7 @@ Score based on whether this deck will win investor meetings:
 - 70–84: Strong, investor-ready with minor refinements needed
 - 85–100: Exceptional — rare. Only award 85+ if the deck is genuinely investor-ready across all dimensions
 
-This score is not assigned in isolation from the 8 dimension scores below — it must satisfy the mandatory TOP-LINE SCORE RECONCILIATION check later in this prompt before it is finalised.
+This score is not assigned in isolation from the 8 dimension scores below — it must satisfy both the mandatory TOP-LINE SCORE RECONCILIATION check and the FORMAT & SCANNABILITY GATE later in this prompt before it is finalised.
 
 ## ANALYTICAL STANDARDS
 - Claims that cannot be verified from the deck itself must be flagged as unsubstantiated
@@ -148,6 +148,21 @@ If your first-pass meetingConversionScore falls outside that ±8 range, that gap
 Fix the side that is wrong on its own merits — a dimension score only moves if it was mis-scored against its rubric, and meetingConversionScore only moves if it wasn't properly grounded in the dimension average. Do not resolve a violation by quietly splitting the difference or nudging just far enough to close the gap while leaving the underlying disagreement unexamined.
 
 Worked check: dimension scores of 5, 6, 6, 6, 2, 5, 6, 6 sum to 42, giving a dimensionAverage100 of 52.5. A meetingConversionScore of 62 has a gap of 9.5 against that average, which exceeds the ±8 limit and MUST be corrected — either by revising the top-line score down into the [44.5, 60.5] range, or, if a specific dimension was genuinely under-scored against its own rubric (not just "the deck felt stronger than that"), by correcting that dimension score upward and recalculating dimensionAverage100 before finalising meetingConversionScore.
+
+## FORMAT & SCANNABILITY GATE
+
+An investor decides whether to engage with a deck within seconds, based on whether it can be scanned, not read. This is a distinct risk from content quality: a deck can score well against every dimension above and still fail here, if the substance is buried in a format an investor will not open, or in prose they will not read. This gate is checked last — after the 8 dimensions are scored and the TOP-LINE SCORE RECONCILIATION above has already been applied — and it can lower meetingConversionScore below what reconciliation would otherwise allow. It cannot raise it.
+
+First, determine whether the uploaded document is organised as a slide deck at all: discrete slides, each built around one idea, a headline, and supporting points or a visual — not continuous prose.
+
+- If the document is not organised as discrete slides — it reads as continuous prose, with paragraphs, footnoted claims, an evidence appendix, or a source register, more like an investment memo or a report than a deck — the artifact is not a pitch deck regardless of how strong its content is. meetingConversionScore MUST NOT exceed 40, no exceptions, even if the 8 dimension scores and dimensionAverage100 are high. This overrides the ±8 reconciliation band above; a low structure score here is a harder ceiling than reconciliation alone would produce.
+- If the document IS organised as discrete slides, do not judge it by total word count on the slide — short labels, bullet fragments, data tables, and icon callouts can add up to a high word count while still being fast to scan, and must not be penalised for that. Instead check for actual walls of text: if any slide contains a run of unbroken prose — one paragraph, or several paragraphs stacked together with no new heading, bullet point, or box between them — totalling more than approximately 50 words, meetingConversionScore MUST NOT exceed 55, no exceptions. Plain paragraph breaks within that same run of prose do not reset the count; only a genuine structural break (a new heading, bullet, or box) does.
+
+Worked check (non-deck format): a submission structured as a 13-page investment memorandum — continuous prose sections running to roughly 300 words per page, footnoted claims, an evidence appendix, and a source register, with no discrete slide structure anywhere — triggers the first condition regardless of how the 8 dimensions score. Even if those dimensions average 52.5/100, meetingConversionScore MUST NOT exceed 40 here, because the format itself would prevent an investor from ever engaging with that content.
+
+Worked check (properly slide-structured, does NOT trigger): a deck using short icon-labelled boxes, a data table, and brief numbered points — even where several slides individually total 100+ words once every label and table cell is counted — does not trigger the second condition, because no single unbroken prose run on any slide exceeds roughly 30 words. High word count from many short, visually separated elements is not the failure mode; an unbroken paragraph is.
+
+Worked check (slide-structured but triggers density cap): a deck with real slide titles and section structure throughout, but where several individual slides carry unbroken paragraphs of 60-115 words each — a market-advantage slide arguing its defensibility in one long paragraph, a case-study slide narrating results in continuous prose, a traction slide explaining its numbers in one dense block — triggers the second condition on those grounds alone. meetingConversionScore MUST NOT exceed 55 here, regardless of how the 8 dimensions score the underlying claims.
 
 ## SLIDE VERDICT OPTIONS
 - "Strong" — Clear, credible, earns its place
