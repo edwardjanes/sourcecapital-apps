@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { computeValuation } from '@/lib/valuation/compute';
 import { buildDefaultParameters } from '@/lib/valuation/defaults';
@@ -59,10 +60,22 @@ function unauthorized() {
 }
 
 export async function POST(request: NextRequest) {
+  // Tags every Sentry event from this request with the failing step, so failures can be traced back.
+  // Only IDs go in `extra` -- never the request body, which carries company financials.
+  const reportError = (error: unknown, step: string, extra: Record<string, unknown> = {}) =>
+    Sentry.captureException(error, {
+      tags: { route: 'api/valuation/compute', step },
+      extra,
+    });
+
   const serviceKey = process.env.VALUATION_SERVICE_KEY;
   if (!serviceKey) {
     // Fail closed: an unset env var must never silently disable auth.
     console.error('VALUATION_SERVICE_KEY is not set -- refusing all requests to /api/valuation/compute');
+    Sentry.captureMessage('VALUATION_SERVICE_KEY is not set -- refusing all requests', {
+      level: 'error',
+      tags: { route: 'api/valuation/compute', step: 'config' },
+    });
     return unauthorized();
   }
   const providedKey = request.headers.get('x-service-key');
@@ -73,7 +86,12 @@ export async function POST(request: NextRequest) {
   let body: ComputeRequestBody;
   try {
     body = await request.json();
-  } catch {
+  } catch (error) {
+    // Warning, not error: the caller (n8n) sent a malformed payload -- an integration bug, not a server fault
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { route: 'api/valuation/compute', step: 'parse_body' },
+    });
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
@@ -129,6 +147,7 @@ export async function POST(request: NextRequest) {
 
     if (findError) {
       console.error('Company lookup error:', findError);
+      reportError(findError, 'company_lookup', { location_id: locationId });
       return NextResponse.json({ error: 'Failed to resolve company' }, { status: 500 });
     }
 
@@ -159,6 +178,7 @@ export async function POST(request: NextRequest) {
         .eq('id', companyId);
       if (updateError) {
         console.error('Company update error:', updateError);
+        reportError(updateError, 'company_update', { location_id: locationId, company_id: companyId });
         return NextResponse.json({ error: 'Failed to update company' }, { status: 500 });
       }
     } else {
@@ -169,6 +189,9 @@ export async function POST(request: NextRequest) {
         .single();
       if (insertError || !inserted) {
         console.error('Company insert error:', insertError);
+        reportError(insertError ?? new Error('Company insert returned no row'), 'company_insert', {
+          location_id: locationId,
+        });
         return NextResponse.json({ error: 'Failed to create company' }, { status: 500 });
       }
       companyId = inserted.id;
@@ -255,14 +278,22 @@ export async function POST(request: NextRequest) {
 
     if (snapshotError) {
       console.error('Snapshot insert error:', snapshotError);
+      reportError(snapshotError, 'snapshot_insert', { location_id: locationId, company_id: companyId });
       return NextResponse.json({ error: snapshotError.message }, { status: 500 });
     }
 
-    await supabaseAdmin
+    const { error: previousSnapshotsError } = await supabaseAdmin
       .from('valuation_snapshots')
       .update({ is_current: false })
       .eq('company_id', companyId)
       .neq('id', snapshot.id);
+    if (previousSnapshotsError) {
+      reportError(previousSnapshotsError, 'previous_snapshots_update', {
+        location_id: locationId,
+        company_id: companyId,
+        snapshot_id: snapshot.id,
+      });
+    }
 
     // Best-effort: a render failure here does not fail the request -- the
     // valuation numbers below are correct and complete regardless.
@@ -279,6 +310,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Headless valuation compute error:', error);
+    reportError(error, 'unhandled', { location_id: locationId });
     return NextResponse.json({ error: 'Failed to compute valuation' }, { status: 500 });
   }
 }
