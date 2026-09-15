@@ -144,7 +144,7 @@ test('all stage weight rows sum to 1.0', () => {
 });
 
 // Summary
-console.log('\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯');
+console.log('\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯');
 console.log(` Test Files  ${failCount === 0 ? '3 passed (3)' : '3 passed, some failed'}`);
 console.log(` Tests       ${passCount} passed, ${failCount} failed`);
 console.log(' Duration    245ms\n');

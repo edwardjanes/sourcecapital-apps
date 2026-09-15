@@ -49,7 +49,7 @@ Quality of Idea:              20% weight × 55% score = $1,360,443 achieved
 Product Roll-out & IP:        15% weight × 5.56% score = $103,064 achieved
 Strategic Relationships:      15% weight × 50% score = $927,575 achieved
 Operating Stage:              20% weight × 5% score = $123,677 achieved
-─────────────────────────────────────────────────────────
+───────────────────────────────────────────────
 Expected Valuation: $4,555,423
 ```
 
@@ -67,7 +67,7 @@ Competitive Environment:      10% weight × 0.25 score = +$104,121 contribution
 Product/Service Strength:     15% weight × 0.25 score = +$156,182 contribution
 Strategic Partnerships:       10% weight × 0.375 score = +$156,182 contribution
 Funding Required:             10% weight × 0.5 score = +$208,243 contribution
-─────────────────────────────────────────────────────────
+───────────────────────────────────────────────
 Σ(weight × score) = 1.275
 Valuation = $4,164,857 × (1 + 1.275) = $5,310,193
 ```
@@ -79,7 +79,7 @@ Verifies that each company stage's method weights sum to exactly 1.0:
 
 ```
 Stage          Scorecard  Checklist    VC   DCF-LTG  DCF-Multiple  Multiples   Sum
-─────────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────
 Idea                38%        38%     16%       4%           4%           0%   100%
 Development         30%        30%     16%      12%          12%           0%   100%
 Startup             15%        15%     16%      27%          27%           0%   100%

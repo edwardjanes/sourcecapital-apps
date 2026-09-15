@@ -128,7 +128,7 @@ export function buildDefaultParameters(
     },
 
     // VC Method parameters
-    // terminal_metric_value is EBITDA (not revenue) — it's paired with an EBITDA multiple below,
+    // terminal_metric_value is EBITDA (not revenue) -- it's paired with an EBITDA multiple below,
     // matching Equidam's methodology: Exit Value = terminal-year EBITDA x industry EBITDA multiple.
     vc_method: {
       terminal_metric_value: terminalEbitda,

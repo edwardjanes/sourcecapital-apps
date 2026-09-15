@@ -1,11 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    esmExternals: true,
-  },
-};
+const nextConfig = {};
 
 export default withSentryConfig(nextConfig, {
   org: "source-capital",
@@ -20,5 +16,3 @@ export default withSentryConfig(nextConfig, {
     },
   },
 });
-
-// Trigger rebuild #3: SENTRY_AUTH_TOKEN Preview scope now ticked -- verify source maps upload.

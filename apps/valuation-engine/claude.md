@@ -105,6 +105,15 @@ Building a Next.js application that replicates Equidam's startup valuation metho
 - [x] Added postcss.config.mjs to prevent Vercel build failure
   - Stops Next.js from walking up to root config that requires tailwindcss
 
+### ✅ Report Rebuild: Token-Based Design System (Aug 25)
+- [x] Rebuilt report visual layer from inline React styles to a token-based CSS design system (report.css)
+- [x] Recovered from a bad patch application (commits 28bb178/e225cc3) that had left the live report serving a 413-line stub instead of the full 17-section report
+- [x] Full reconstruction: ReportClient.tsx (1074 lines, all 17 sections), report.css (285 lines, --rpt-* tokens, light/dark theme support), print.css (targets .rpt-* classes, forces light theme, correct page breaks)
+- [x] Added ReportChart.tsx — SVG bar chart, no external charting libs
+- [x] Loaded Source Serif 4 / Source Sans 3 / Source Code Pro fonts for the report
+- [x] Resolved a PGRST205 "Could not find table 'public.valuation_balance_sheet'" error — root cause was a stale PostgREST schema cache, not a real schema issue (see Troubleshooting)
+- [x] De-duplicated report.css (had accidentally doubled to 560 lines)
+
 ### ✅ Auth & Chart Fixes (Aug 27)
 - [x] Fixed auth error page (404) — created `/auth/auth-code-error/page.tsx`
   - Expired/invalid email confirmation links now show styled error page + recovery link
@@ -271,11 +280,13 @@ Building a Next.js application that replicates Equidam's startup valuation metho
 
 2. **Scoring Rubric:** Sub-trait weighting derived from questionnaire is assumed; Equidam's exact rubric is proprietary. Users can override individual criterion scores.
 
-3. **Report Sections:** Summary only currently. Full 14-section report (per Equidam template) is scaffolded but not fully rendered.
+3. **Report Sections:** Full 17-section report is complete as of the Aug 25 report rebuild (Cover, About, Company Summary, Forecasts, Funding, Valuation Summary, 6 Methods, Qualitative, Defaults, P&L, CF, Method Weights, Appendix) — see Report Architecture below. Not a scaffold.
 
 4. **PDF Export:** Browser print dialog (no server-side PDF generation). Works well for local testing.
 
 5. **Dashboard:** Doesn't show company list yet (feature for Phase 2).
+
+6. **Supabase Join Type Unwrapping:** When querying tables with joins, some results return as arrays even for a logically single record. Apply an `Array.isArray()` check before accessing single-record fields from a joined query result.
 
 ---
 
@@ -313,7 +324,7 @@ src/
 ```bash
 npm run test
 ```
-Expected: 3/3 passing (Scorecard, Checklist, Weights)
+Expected: 6/6 passing (Scorecard, Checklist, Weights, FCF, Compute orchestrator, Scoring regression)
 
 ### Local Development
 ```bash
@@ -474,6 +485,7 @@ Value = Σ[t=1..n] (FCFE_t × SurvivalRate_t) / (1+DiscountRate)^t
 - Light theme defaults in `:root`
 - Dark theme via `@media (prefers-color-scheme: dark)` and `:root[data-theme="dark"]`
 - Typography: Source Serif 4 (headings), Source Sans 3 (body), Source Code Pro (numerics)
+- Rebuilt Aug 25 from scratch after a bad patch left the live report on a 413-line stub; de-duplicated from an accidental 560-line double-up down to the current 285/286 lines
 
 **print.css**
 - Forces light theme palette with `!important`
@@ -571,6 +583,11 @@ npm run test -- --watch
 **Cause:** FCFE/revenue calculation returns null/undefined  
 **Check:** `src/lib/valuation/fcf.ts` — ensure financials.yearOffset is -1 or 0..5  
 **Test:** Run `npm run test` — if compute.test.ts passes, logic is sound
+
+### Balance Sheet Data Missing / PGRST205 Error
+**Symptom:** `PGRST205: Could not find table 'public.valuation_balance_sheet'` on balance sheet upsert, despite the table existing with the correct schema.  
+**Cause:** Stale PostgREST schema cache — not a real schema issue, no code changes needed.  
+**Fix:** Issue `NOTIFY pgrst, 'reload schema'` directly against the database. If it recurs, reissue the same command.
 
 ### PDF Export Opens but Page Breaks Wrong
 **Cause:** `print.css` page-break rules or report height calculation  

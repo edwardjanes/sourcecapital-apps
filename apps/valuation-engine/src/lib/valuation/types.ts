@@ -73,38 +73,38 @@ export type MethodWeightSet = Record<ValuationMethodKey, number>;
 
 export interface ValuationParameters {
   methodWeights: MethodWeightSet;
-  scorecard: { 
-    criteriaWeights: Record<ScorecardCriterionKey, number>; 
-    averagePreMoneyValuation: number; 
-    scores: Record<ScorecardCriterionKey, number>; 
+  scorecard: {
+    criteriaWeights: Record<ScorecardCriterionKey, number>;
+    averagePreMoneyValuation: number;
+    scores: Record<ScorecardCriterionKey, number>;
   };
-  checklist: { 
-    criteriaWeights: Record<ChecklistCriterionKey, number>; 
-    maxValuation: number; 
-    scores: Record<ChecklistCriterionKey, number>; 
+  checklist: {
+    criteriaWeights: Record<ChecklistCriterionKey, number>;
+    maxValuation: number;
+    scores: Record<ChecklistCriterionKey, number>;
   };
-  vc: { 
-    exitMetricType: MetricType; 
-    industryMultiple: number; 
-    requiredRoi: number; 
-    capitalRaisedOverride: number | null; 
+  vc: {
+    exitMetricType: MetricType;
+    industryMultiple: number;
+    requiredRoi: number;
+    capitalRaisedOverride: number | null;
   };
-  dcfShared: { 
-    riskFreeRate: number; 
-    beta: number; 
-    marketRiskPremium: number; 
-    survivalRates: number[]; 
-    illiquidityDiscount: number; 
+  dcfShared: {
+    riskFreeRate: number;
+    beta: number;
+    marketRiskPremium: number;
+    survivalRates: number[];
+    illiquidityDiscount: number;
   };
-  dcfLtg: { 
-    longTermGrowthRate: number; 
+  dcfLtg: {
+    longTermGrowthRate: number;
   };
-  dcfMultiple: { 
-    exitMetricType: MetricType; 
-    industryMultiple: number; 
+  dcfMultiple: {
+    exitMetricType: MetricType;
+    industryMultiple: number;
   };
-  multiples: { 
-    enabled: boolean; 
+  multiples: {
+    enabled: boolean;
   };
 }
 
@@ -129,6 +129,12 @@ export interface ValuationReportOutput {
   discountRate: number;
   fcfeByYear: FcfeYear[];
   generatedAt: string;
+  // Currency this report's amounts are denominated in, resolved server-side
+  // from company.country via getCurrencyForCountry() -- optional so historical
+  // snapshots stored before this field existed still type-check (display paths
+  // treat a missing/undefined value as the pre-existing implicit USD default).
+  // See claude/track-11-currency-localization-scope.md.
+  currency?: string;
 }
 
 // --- Company Profile ---

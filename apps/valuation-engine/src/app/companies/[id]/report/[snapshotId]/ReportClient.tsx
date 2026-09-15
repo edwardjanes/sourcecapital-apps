@@ -70,6 +70,15 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
   const [activeId, setActiveId] = useState<string>('cover');
   const bookRef = useRef<HTMLDivElement>(null);
 
+  // Currency this report's amounts are denominated in. Resolved server-side
+  // at compute time (see referenceData.ts's getCurrencyForCountry() and the
+  // compute route) and stored on the snapshot's outputs; falls back to the
+  // company row's currency, then to USD for any snapshot/company predating
+  // this field. Never re-derived here from country -- the stored value is
+  // the source of truth for what was actually shown/computed at the time.
+  const currency: string = report?.currency || snapshotCompany?.currency || 'USD';
+  const fmt = (value: number, decimals?: number) => formatCurrency(value, currency, decimals);
+
   const handlePrint = () => window.print();
 
   useEffect(() => {
@@ -182,7 +191,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 label="Founder Capital Committed"
                 value={
                   snapshotCompany.founders_committed_capital
-                    ? formatCurrency(snapshotCompany.founders_committed_capital)
+                    ? fmt(snapshotCompany.founders_committed_capital)
                     : null
                 }
                 numeric
@@ -208,11 +217,11 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 <tbody>
                   <tr>
                     <td>Revenue</td>
-                    <td className="num">{formatCurrency(lastYearRevenue)}</td>
+                    <td className="num">{fmt(lastYearRevenue)}</td>
                   </tr>
                   <tr>
                     <td>EBITDA</td>
-                    <td className="num">{formatCurrency(lastYearEbitda)}</td>
+                    <td className="num">{fmt(lastYearEbitda)}</td>
                   </tr>
                   <tr>
                     <td>EBITDA Margin</td>
@@ -224,7 +233,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                     <td>Cash in Hand</td>
                     <td className="num">
                       {inputs.balanceSheet?.cash_and_equivalents
-                        ? formatCurrency(inputs.balanceSheet.cash_and_equivalents)
+                        ? fmt(inputs.balanceSheet.cash_and_equivalents)
                         : '–'}
                     </td>
                   </tr>
@@ -305,8 +314,8 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                               ? new Date(round.closed_date).toLocaleDateString()
                               : '–'}
                           </td>
-                          <td className="num">{formatCurrency(round.investment_amount)}</td>
-                          <td className="num">{formatCurrency(round.post_money_or_cap)}</td>
+                          <td className="num">{fmt(round.investment_amount)}</td>
+                          <td className="num">{fmt(round.post_money_or_cap)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -354,15 +363,15 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-kpi-row">
               <div className="rpt-kpi emph">
                 <div className="rpt-kpi-label">Valuation</div>
-                <div className="rpt-kpi-value">{formatCurrency(report.weightedValuation)}</div>
+                <div className="rpt-kpi-value">{fmt(report.weightedValuation)}</div>
               </div>
               <div className="rpt-kpi">
                 <div className="rpt-kpi-label">Low Bound (–9.6%)</div>
-                <div className="rpt-kpi-value">{formatCurrency(report.lowBound)}</div>
+                <div className="rpt-kpi-value">{fmt(report.lowBound)}</div>
               </div>
               <div className="rpt-kpi">
                 <div className="rpt-kpi-label">High Bound (+9.6%)</div>
-                <div className="rpt-kpi-value">{formatCurrency(report.highBound)}</div>
+                <div className="rpt-kpi-value">{fmt(report.highBound)}</div>
               </div>
             </div>
 
@@ -391,9 +400,9 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                   {(report.perMethod || []).map((method: any) => (
                     <tr key={method.method}>
                       <td>{method.method}</td>
-                      <td className="num">{formatCurrency(method.valuation)}</td>
+                      <td className="num">{fmt(method.valuation)}</td>
                       <td className="num">{formatPercent(method.weight)}</td>
-                      <td className="num">{formatCurrency(method.weightedContribution)}</td>
+                      <td className="num">{fmt(method.weightedContribution)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -436,12 +445,12 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
               <div className="rpt-wf-row">
                 <span className="k">Regional Baseline (Average Pre-Money)</span>
                 <span className="v">
-                  {formatCurrency(inputs.parameters?.scorecard?.average_pre_money_valuation || 0)}
+                  {fmt(inputs.parameters?.scorecard?.average_pre_money_valuation || 0)}
                 </span>
               </div>
               <div className="rpt-wf-row">
                 <span className="k">Scorecard Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.scorecard?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.scorecard?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -471,7 +480,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                         <td>{c.key}</td>
                         <td className="num">{formatPercent(c.weight)}</td>
                         <td className="num">{c.score.toFixed(2)}</td>
-                        <td className="num">{formatCurrency(c.achievedValue || 0)}</td>
+                        <td className="num">{fmt(c.achievedValue || 0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -482,11 +491,11 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
                 <span className="k">Maximum Valuation (Regional)</span>
-                <span className="v">{formatCurrency(inputs.parameters?.checklist?.max_valuation || 0)}</span>
+                <span className="v">{fmt(inputs.parameters?.checklist?.max_valuation || 0)}</span>
               </div>
               <div className="rpt-wf-row">
                 <span className="k">Checklist Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.checklist?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.checklist?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -515,7 +524,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
                 <span className="k">VC Method Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.vc?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.vc?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -537,12 +546,12 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
               />
               <Field
                 label="Discounted FCF Sum"
-                value={formatCurrency(report.methodResults?.dcfLtg?.discountedFcfSum || 0)}
+                value={fmt(report.methodResults?.dcfLtg?.discountedFcfSum || 0)}
                 numeric
               />
               <Field
                 label="Terminal Value (Discounted)"
-                value={formatCurrency(report.methodResults?.dcfLtg?.discountedTerminalValue || 0)}
+                value={fmt(report.methodResults?.dcfLtg?.discountedTerminalValue || 0)}
                 numeric
               />
             </div>
@@ -550,7 +559,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
                 <span className="k">DCF-LTG Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.dcfLtg?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.dcfLtg?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -575,7 +584,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
                 <span className="k">DCF-Multiple Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.dcfMultiple?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.dcfMultiple?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -616,7 +625,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
                 <span className="k">Multiples Valuation</span>
-                <span className="v">{formatCurrency(report.methodResults?.multiples?.valuation || 0)}</span>
+                <span className="v">{fmt(report.methodResults?.multiples?.valuation || 0)}</span>
               </div>
             </div>
           </section>
@@ -641,7 +650,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                     <TraitRow k="Recurring Revenue" v={yn(inputs.questionnaire.recurring_revenue)} />
                     <TraitRow
                       k="TAM Size"
-                      v={inputs.questionnaire.tam_size ? formatCurrency(inputs.questionnaire.tam_size) : '–'}
+                      v={inputs.questionnaire.tam_size ? fmt(inputs.questionnaire.tam_size) : '–'}
                     />
                     <TraitRow
                       k="Market Growth Rate"
@@ -679,7 +688,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <p className="rpt-lede">
               Parameters overridden from the platform&apos;s baseline for this company.
             </p>
-            <DefaultValuesTable snapshotCompany={snapshotCompany} inputs={inputs} />
+            <DefaultValuesTable snapshotCompany={snapshotCompany} inputs={inputs} currency={currency} />
           </section>
 
           {/* P&L */}
@@ -701,14 +710,15 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    <PnlRow label="Revenue" values={inputs.financials.map((f: any) => f.revenue)} />
-                    <PnlRow label="COGS" values={inputs.financials.map((f: any) => f.cogs)} />
-                    <PnlRow label="Salaries" values={inputs.financials.map((f: any) => f.salaries)} />
-                    <PnlRow label="OpEx" values={inputs.financials.map((f: any) => f.otherOpex)} />
+                    <PnlRow label="Revenue" values={inputs.financials.map((f: any) => f.revenue)} currency={currency} />
+                    <PnlRow label="COGS" values={inputs.financials.map((f: any) => f.cogs)} currency={currency} />
+                    <PnlRow label="Salaries" values={inputs.financials.map((f: any) => f.salaries)} currency={currency} />
+                    <PnlRow label="OpEx" values={inputs.financials.map((f: any) => f.otherOpex)} currency={currency} />
                     <PnlRow
                       label="EBITDA"
                       bold
                       values={report.fcfeByYear.map((f: any) => f.ebitda)}
+                      currency={currency}
                     />
                     <tr>
                       <td>EBITDA Margin</td>
@@ -721,8 +731,8 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                         );
                       })}
                     </tr>
-                    <PnlRow label="D&amp;A" values={report.fcfeByYear.map((f: any) => f.da)} />
-                    <PnlRow label="EBIT" bold values={report.fcfeByYear.map((f: any) => f.ebit)} />
+                    <PnlRow label="D&amp;A" values={report.fcfeByYear.map((f: any) => f.da)} currency={currency} />
+                    <PnlRow label="EBIT" bold values={report.fcfeByYear.map((f: any) => f.ebit)} currency={currency} />
                     <tr>
                       <td>EBIT Margin</td>
                       {inputs.financials.map((f: any, idx: number) => {
@@ -734,13 +744,14 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                         );
                       })}
                     </tr>
-                    <PnlRow label="Interest" values={inputs.financials.map((f: any) => f.interest)} />
-                    <PnlRow label="EBT" values={report.fcfeByYear.map((f: any) => f.ebt)} />
-                    <PnlRow label="Taxes" values={inputs.financials.map((f: any) => f.taxes)} />
+                    <PnlRow label="Interest" values={inputs.financials.map((f: any) => f.interest)} currency={currency} />
+                    <PnlRow label="EBT" values={report.fcfeByYear.map((f: any) => f.ebt)} currency={currency} />
+                    <PnlRow label="Taxes" values={inputs.financials.map((f: any) => f.taxes)} currency={currency} />
                     <PnlRow
                       label="Net Profit"
                       bold
                       values={report.fcfeByYear.map((f: any) => f.netIncome)}
+                      currency={currency}
                     />
                     <tr>
                       <td>Net Margin</td>
@@ -778,26 +789,28 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    <PnlRow label="Net Income" values={report.fcfeByYear.map((f: any) => f.netIncome)} />
-                    <PnlRow label="D&amp;A" values={report.fcfeByYear.map((f: any) => f.da)} />
-                    <PnlRow label="ΔWorking Capital" values={report.fcfeByYear.map((f: any) => f.deltaWc)} />
+                    <PnlRow label="Net Income" values={report.fcfeByYear.map((f: any) => f.netIncome)} currency={currency} />
+                    <PnlRow label="D&amp;A" values={report.fcfeByYear.map((f: any) => f.da)} currency={currency} />
+                    <PnlRow label="ΔWorking Capital" values={report.fcfeByYear.map((f: any) => f.deltaWc)} currency={currency} />
                     <PnlRow
                       label="Working Capital"
                       values={inputs.financials.map(
                         (f: any) => (f.receivables || 0) + (f.inventory || 0) - (f.payables || 0)
                       )}
+                      currency={currency}
                     />
-                    <PnlRow label="Receivables" values={inputs.financials.map((f: any) => f.receivables || 0)} />
-                    <PnlRow label="Inventory" values={inputs.financials.map((f: any) => f.inventory || 0)} />
-                    <PnlRow label="Payables" values={inputs.financials.map((f: any) => f.payables || 0)} />
-                    <PnlRow label="Capex" values={inputs.financials.map((f: any) => f.capex || 0)} />
-                    <PnlRow label="ΔDebt" values={report.fcfeByYear.map((f: any) => f.deltaDebt)} />
-                    <PnlRow label="Debt (Year-end)" values={inputs.financials.map((f: any) => f.debt || 0)} />
+                    <PnlRow label="Receivables" values={inputs.financials.map((f: any) => f.receivables || 0)} currency={currency} />
+                    <PnlRow label="Inventory" values={inputs.financials.map((f: any) => f.inventory || 0)} currency={currency} />
+                    <PnlRow label="Payables" values={inputs.financials.map((f: any) => f.payables || 0)} currency={currency} />
+                    <PnlRow label="Capex" values={inputs.financials.map((f: any) => f.capex || 0)} currency={currency} />
+                    <PnlRow label="ΔDebt" values={report.fcfeByYear.map((f: any) => f.deltaDebt)} currency={currency} />
+                    <PnlRow label="Debt (Year-end)" values={inputs.financials.map((f: any) => f.debt || 0)} currency={currency} />
                     <PnlRow
                       label="Equity Fundraising"
                       values={inputs.financials.map((f: any) => f.fundraisingPlan || 0)}
+                      currency={currency}
                     />
-                    <PnlRow label="FCFE" bold values={report.fcfeByYear.map((f: any) => f.fcfe)} />
+                    <PnlRow label="FCFE" bold values={report.fcfeByYear.map((f: any) => f.fcfe)} currency={currency} />
                     <PnlRow
                       label="Free Cash Flow (FCFE + Fundraising)"
                       bold
@@ -805,6 +818,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                         const fcfe = report.fcfeByYear[idx]?.fcfe || 0;
                         return fcfe + (f.fundraisingPlan || 0);
                       })}
+                      currency={currency}
                     />
                     <tr className="row-sub">
                       <td>Cash Balance (Illustrative)</td>
@@ -817,7 +831,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                         }
                         return (
                           <td key={idx} className="num">
-                            {formatCurrency(cashBalance)}
+                            {fmt(cashBalance)}
                           </td>
                         );
                       })}
@@ -948,24 +962,34 @@ function PnlRow({
   label,
   values,
   bold,
+  currency,
 }: {
   label: string;
   values: number[];
   bold?: boolean;
+  currency: string;
 }) {
   return (
     <tr className={bold ? 'row-total' : undefined}>
       <td>{label}</td>
       {values.map((v, idx) => (
         <td key={idx} className="num">
-          {formatCurrency(v || 0)}
+          {formatCurrency(v || 0, currency)}
         </td>
       ))}
     </tr>
   );
 }
 
-function DefaultValuesTable({ snapshotCompany, inputs }: { snapshotCompany: any; inputs: any }) {
+function DefaultValuesTable({
+  snapshotCompany,
+  inputs,
+  currency,
+}: {
+  snapshotCompany: any;
+  inputs: any;
+  currency: string;
+}) {
   const defaultParams = buildDefaultParameters(
     {
       name: snapshotCompany.name,
@@ -1060,10 +1084,10 @@ function DefaultValuesTable({ snapshotCompany, inputs }: { snapshotCompany: any;
             <tr key={idx}>
               <td>{field.label}</td>
               <td className="num">
-                {field.format === 'percent' ? formatPercent(field.default, 2) : formatCurrency(field.default)}
+                {field.format === 'percent' ? formatPercent(field.default, 2) : formatCurrency(field.default, currency)}
               </td>
               <td className="num">
-                {field.format === 'percent' ? formatPercent(field.current, 2) : formatCurrency(field.current)}
+                {field.format === 'percent' ? formatPercent(field.current, 2) : formatCurrency(field.current, currency)}
               </td>
             </tr>
           ))}

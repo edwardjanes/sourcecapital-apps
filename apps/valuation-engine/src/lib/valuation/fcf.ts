@@ -29,11 +29,11 @@ export function deriveFcfeByYear(years: FinancialYear[]): FcfeYear[] {
     // Handle NOL carryforward: loss years generate deferred tax benefits
     let taxes = rawTaxes;
     if (ebt < 0 && rawTaxes < 0) {
-      // Loss year with an implied tax benefit — defer it to future profitable years
+      // Loss year with an implied tax benefit -- defer it to future profitable years
       deferredTaxBenefit += -rawTaxes;
       taxes = 0;
     } else if (ebt >= 0 && rawTaxes > 0 && deferredTaxBenefit > 0) {
-      // Profitable year — use up as much carried-forward benefit as this year's tax liability allows
+      // Profitable year -- use up as much carried-forward benefit as this year's tax liability allows
       const offset = Math.min(deferredTaxBenefit, rawTaxes);
       taxes = rawTaxes - offset;
       deferredTaxBenefit -= offset;

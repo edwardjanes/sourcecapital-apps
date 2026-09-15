@@ -103,6 +103,7 @@ export default function UploadPage() {
         throw new Error(data.error || "Submission failed");
       }
 
+      posthog.capture("deck_uploaded", { business_name: businessName, country });
       posthog.capture("deck_submitted", {
         submission_id: data.id,
         business_name: businessName,

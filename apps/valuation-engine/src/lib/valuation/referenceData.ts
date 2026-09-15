@@ -45,6 +45,31 @@ export const COUNTRIES = {
   default: { avgSeedPreMoney: 2500000, checklistMaxValuation: 5500000, riskFree10Y: 0.050, equityRiskPremium: 0.070, corporateTaxRate: 0.2400 },
 } as const;
 
+// Currency the valuation report is displayed/labeled in, resolved automatically
+// from the company's country -- never a founder-facing choice (Ed, 31 Aug 2026,
+// see claude/track-11-currency-localization-scope.md). Rule as given: UK -> GBP,
+// Europe -> EUR, everywhere else -> USD, with three named exceptions for European
+// countries that are not on the euro and already have their own entry above:
+// SE (SEK), CH (CHF), and PL (PLN) -- applying "Europe -> EUR" literally to these
+// would mislabel them, the same issue flagged for SE/CH and confirmed by Ed;
+// PL was found while building this table and extends the same already-approved
+// principle rather than a new decision. This is a label only -- it does not
+// change any discount-rate/multiple lookup, which stays keyed off COUNTRIES above.
+export const CURRENCY_BY_COUNTRY: Partial<Record<keyof typeof COUNTRIES, string>> = {
+  GB: 'GBP',
+  DE: 'EUR', FR: 'EUR', NL: 'EUR', IE: 'EUR', ES: 'EUR', IT: 'EUR',
+  SE: 'SEK',
+  CH: 'CHF',
+  PL: 'PLN',
+  // everything else, including 'default', falls through to DEFAULT_CURRENCY
+};
+export const DEFAULT_CURRENCY = 'USD';
+
+export function getCurrencyForCountry(country: string | undefined | null): string {
+  if (!country) return DEFAULT_CURRENCY;
+  return CURRENCY_BY_COUNTRY[country as keyof typeof COUNTRIES] ?? DEFAULT_CURRENCY;
+}
+
 export const INDUSTRIES = {
   SaaS:        { beta: 1.23, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
   Fintech:     { beta: 0.78, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },

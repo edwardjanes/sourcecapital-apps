@@ -26,21 +26,21 @@ CREATE TABLE IF NOT EXISTS valuation_companies (
   website                     text,
   business_model              text CHECK (business_model IN ('b2b','b2c','both')),
   scalable                    boolean,
-  exit_strategy               text,
+  exit_strategy                text,
   exit_strategy_readiness     text,
   stage                       text NOT NULL DEFAULT 'idea'
     CHECK (stage IN ('idea','development','startup','expansion','growth','maturity')),
   profitability_status        text CHECK (profitability_status IN ('pre_revenue','revenue_not_profitable','profitable')),
   breakeven_reached           boolean,
-  advisory_board              boolean DEFAULT false,
+  advisory_board               boolean DEFAULT false,
   advisory_board_count        integer,
   shareholder_types           text[] DEFAULT '{}',
-  legal_counsel               boolean,
+  legal_counsel                boolean,
   ip_type                     text,
   ip_protection_stage         text,
 
   wizard_step                 text NOT NULL DEFAULT 'profile',
-  report_status               text NOT NULL DEFAULT 'draft'
+  report_status                text NOT NULL DEFAULT 'draft'
     CHECK (report_status IN ('draft','ready','archived'))
 );
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { classifyUploadError } from "@/lib/errorHandler";
-import { createOrUpdateContact as createGHLContact } from "@/lib/ghl";
+import { compressPdf } from "@/lib/compressPdf";
 
 export const maxDuration = 60;
 
@@ -10,17 +11,51 @@ export async function POST(req: NextRequest) {
   let submissionId: string | undefined;
 
   try {
+    // Verify the caller is an authenticated sc_admin before doing anything else
+    const cookieHeader = req.headers.get("cookie") || "";
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => {
+            return cookieHeader.split("; ").filter(Boolean).map((c) => {
+              const [name, value] = c.split("=");
+              return { name, value };
+            });
+          },
+          setAll: () => {},
+        },
+      }
+    );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("sc_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profile?.sc_admin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const formData = await req.formData();
 
-    const firstName    = (formData.get("firstName") as string)?.trim();
-    const lastName     = (formData.get("lastName") as string)?.trim();
-    const email        = (formData.get("email") as string)?.trim().toLowerCase();
     const businessName = (formData.get("businessName") as string)?.trim();
+    const website      = (formData.get("website") as string)?.trim();
     const country      = (formData.get("country") as string)?.trim();
     const file         = formData.get("deck") as File | null;
 
     // Validate required fields
-    if (!firstName || !businessName || !country || !email) {
+    if (!businessName || !country) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -31,31 +66,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Create submission record
-    // Note: is_admin_upload column may not exist yet, so we'll update it after insert if needed
     const { data: submission, error: dbError } = await supabaseAdmin
       .from("deck_submissions")
       .insert({
-        first_name:    firstName,
-        last_name:     lastName,
-        email:         email || null,
+        first_name:    "Admin",
+        last_name:     "Upload",
+        email:         "admin@sourcecapital.co.uk",
         business_name: businessName,
         country,
         status:        "pending",
       })
       .select("id")
       .single();
-
-    // Try to set admin upload flag if the column exists
-    if (!dbError && submission?.id) {
-      try {
-        await supabaseAdmin
-          .from("deck_submissions")
-          .update({ is_admin_upload: true })
-          .eq("id", submission.id);
-      } catch {
-        // Column may not exist yet, that's ok
-      }
-    }
 
     if (dbError || !submission) {
       console.error("DB insert error:", dbError);
@@ -65,28 +87,17 @@ export async function POST(req: NextRequest) {
     submissionId = submission.id;
     console.log(`[admin-submit] Created submission ${submissionId} for ${businessName}`);
 
-    // Sync contact to GHL ONLY (no Loops, no emails)
-    if (email && submissionId) {
-      createGHLContact({
-        email,
-        firstName,
-        lastName: lastName ?? "",
-        customFieldValues: [
-          { id: "hQDLWShDeKgJBbTYWc9m", value: submissionId },
-        ],
-        tags: ["Admin Upload"],
-      }).catch(err => {
-        console.error("[ghl] Contact error:", err);
-        Sentry.captureException(err, {
-          tags: { type: "ghl_contact_sync_admin" },
-          extra: { email, firstName, lastName, businessName },
-        });
-      });
-    }
-
-    // 2. Upload PDF to Supabase Storage
-    const fileBuffer = await file.arrayBuffer();
+    // 2. Compress PDF and upload to Supabase Storage
+    let fileBuffer = await file.arrayBuffer();
     const filePath   = `${submissionId}/${file.name}`;
+
+    try {
+      const compressed = await compressPdf(fileBuffer);
+      fileBuffer = compressed.data.buffer as ArrayBuffer;
+      console.log(`[admin-submit] Compressed PDF: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.compressedBytes / 1024 / 1024).toFixed(1)}MB`);
+    } catch (compressErr) {
+      console.warn("[admin-submit] PDF compression failed, continuing with original:", compressErr);
+    }
 
     const { error: storageError } = await supabaseAdmin.storage
       .from("decks")

@@ -4,6 +4,37 @@ import { withSentryConfig } from '@sentry/nextjs';
 const nextConfig = {
   // Allow long-running API routes for PDF analysis (up to 5 minutes on Vercel Pro)
   experimental: {},
+
+  // Consolidate deck submission intake to single canonical route
+  redirects: async () => [
+    // Redirect old /upload route to canonical investment-score flow
+    {
+      source: '/upload',
+      destination: '/investment-score',
+      permanent: false,
+    },
+    // Redirect deprecated investability-score branding to investment-score
+    {
+      source: '/investability-score',
+      destination: '/investment-score',
+      permanent: false,
+    },
+    {
+      source: '/investability-score/upload',
+      destination: '/investment-score/upload',
+      permanent: false,
+    },
+    {
+      source: '/investability-score/analysing/:id',
+      destination: '/investment-score/analysing/:id',
+      permanent: false,
+    },
+    {
+      source: '/investability-score/results/:id',
+      destination: '/investment-score/results/:id',
+      permanent: false,
+    },
+  ],
 };
 
 export default withSentryConfig(nextConfig, {

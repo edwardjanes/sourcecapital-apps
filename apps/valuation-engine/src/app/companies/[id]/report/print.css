@@ -16,7 +16,7 @@
 
   /* Print always renders the light palette, regardless of the viewer's OS theme */
   :root {
-    --bg: #F6F7F9 !important;
+    --bg: #FFFFFF !important;
     --paper: #FFFFFF !important;
     --paper-alt: #EEF1F4 !important;
     --ink: #14181F !important;
@@ -29,6 +29,21 @@
     --accent-soft: #E4F3F0 !important;
     --gold: #C08A2E !important;
     --gold-soft: #F7EDDA !important;
+  }
+
+  /* .rpt renders `background: var(--bg)` on screen (a pale grey canvas the
+     page-cards float on) and .rpt-page itself only grows to fit its content,
+     not a full physical page -- but page-break-after below forces one A4
+     page per section regardless. Without this, the leftover space on every
+     short section showed the wrapper's pale grey instead of white. Belt and
+     suspenders: force every layer in the stack to white explicitly, not just
+     the --bg token, since .rpt-page's own background is a separate rule in
+     report.css (var(--paper), already white, but pinned here too). */
+  .rpt,
+  .rpt-shell,
+  .rpt-book,
+  .rpt-page {
+    background: #FFFFFF !important;
   }
 
   /* Hide chrome that has no place on the page */

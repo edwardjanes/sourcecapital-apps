@@ -13,6 +13,11 @@ function PostHogPageView() {
       api_host: "https://us.i.posthog.com",
       capture_pageview: false, // manual below
       capture_pageleave: true,
+      // Share the distinct_id cookie across app.sourcecapital.co.uk and
+      // sourcecapital.co.uk (same root domain) so a visitor who arrives
+      // from the marketing homepage is tracked as one person, not two --
+      // required for the homepage-to-purchase funnel to stitch together.
+      cross_subdomain_cookie: true,
     });
   }, []);
 
