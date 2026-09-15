@@ -21,4 +21,4 @@ export default withSentryConfig(nextConfig, {
   },
 });
 
-// Trigger rebuild #2: SENTRY_AUTH_TOKEN now actually deployed in Vercel -- verify source maps upload this time.
+// Trigger rebuild #3: SENTRY_AUTH_TOKEN Preview scope now ticked -- verify source maps upload.
