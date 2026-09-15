@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import * as Sentry from '@sentry/nextjs';
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    Sentry.captureException(error, { tags: { route: 'companies/new' } });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

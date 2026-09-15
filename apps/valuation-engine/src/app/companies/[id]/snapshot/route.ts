@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import * as Sentry from '@sentry/nextjs';
 import { computeValuation } from '@/lib/valuation/compute';
 import { buildDefaultParameters } from '@/lib/valuation/defaults';
 import { validateWizardData, hasBlockingIssues } from '@/lib/valuation/validation';
@@ -38,6 +39,13 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Tags every Sentry event from this request with the company, so failures can be traced back
+  const reportError = (error: unknown, step: string) =>
+    Sentry.captureException(error, {
+      tags: { route: 'companies/[id]/snapshot', step },
+      extra: { company_id: params.id },
+    });
 
   try {
     const { weights, company: bodyCompany, financials: bodyFinancials, questionnaire: bodyQuestionnaire, captable: bodyCaptable, comparables: bodyComparables, balanceSheet: bodyBalanceSheet } = await request.json();
@@ -100,12 +108,15 @@ export async function POST(
         order_index: i,
       }));
       // Persist normalized cap table
-      await supabase.from('valuation_cap_table').delete().eq('company_id', params.id);
+      const { error: capTableDeleteError } = await supabase.from('valuation_cap_table').delete().eq('company_id', params.id);
+      if (capTableDeleteError) reportError(capTableDeleteError, 'cap_table_delete');
       const capTableRows = capTableNormalized.map((row: any) => ({
         company_id: params.id,
         ...row,
       }));
-      await supabase.from('valuation_cap_table').insert(capTableRows);
+      // A failure here after the delete above leaves the company with no cap table rows
+      const { error: capTableInsertError } = await supabase.from('valuation_cap_table').insert(capTableRows);
+      if (capTableInsertError) reportError(capTableInsertError, 'cap_table_insert');
     } else {
       // Fetch from DB (already in DB column shape)
       capTableNormalized = (await supabase
@@ -133,14 +144,17 @@ export async function POST(
         source: c.source || 'wizard',
       }));
       // Persist normalized comparables
-      await supabase.from('valuation_comparables').delete().eq('company_id', params.id);
+      const { error: comparablesDeleteError } = await supabase.from('valuation_comparables').delete().eq('company_id', params.id);
+      if (comparablesDeleteError) reportError(comparablesDeleteError, 'comparables_delete');
       const comparableRows = comparablesNormalized.map((row: any) => ({
         company_id: params.id,
         ...row,
         date_observed: new Date().toISOString().split('T')[0],
         gathered_by: user.id,
       }));
-      await supabase.from('valuation_comparables').insert(comparableRows);
+      // A failure here after the delete above leaves the company with no comparables rows
+      const { error: comparablesInsertError } = await supabase.from('valuation_comparables').insert(comparableRows);
+      if (comparablesInsertError) reportError(comparablesInsertError, 'comparables_insert');
     } else {
       // Fetch from DB (already in DB column shape)
       comparablesNormalized = (await supabase
@@ -177,6 +191,7 @@ export async function POST(
         .single();
       if (balanceSheetUpsertError) {
         console.error('Balance sheet upsert error:', balanceSheetUpsertError);
+        reportError(balanceSheetUpsertError, 'balance_sheet_upsert');
       }
       balanceSheet = upserted || balanceSheet;
     }
@@ -203,6 +218,7 @@ export async function POST(
         .eq('owner_id', user.id);
       if (companyUpdateError) {
         console.error('Company profile update error:', companyUpdateError);
+        reportError(companyUpdateError, 'company_update');
       }
     }
 
@@ -276,15 +292,17 @@ export async function POST(
       .single();
 
     if (snapshotError) {
+      reportError(snapshotError, 'snapshot_insert');
       return NextResponse.json({ error: snapshotError.message }, { status: 500 });
     }
 
     // Mark previous snapshots as not current
-    await supabase
+    const { error: previousSnapshotsError } = await supabase
       .from('valuation_snapshots')
       .update({ is_current: false })
       .eq('company_id', params.id)
       .neq('id', snapshot.id);
+    if (previousSnapshotsError) reportError(previousSnapshotsError, 'previous_snapshots_update');
 
     return NextResponse.json({
       snapshot,
@@ -292,6 +310,7 @@ export async function POST(
     });
   } catch (error) {
     console.error('Snapshot error:', error);
+    reportError(error, 'unhandled');
     return NextResponse.json(
       { error: 'Failed to generate valuation' },
       { status: 500 }
