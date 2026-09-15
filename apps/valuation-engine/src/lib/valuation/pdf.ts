@@ -1,7 +1,18 @@
+import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 const PDFSHIFT_ENDPOINT = 'https://api.pdfshift.io/v3/convert/pdf';
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
+// Every failure below returns null instead of throwing, so none of them reach Sentry on their own --
+// report each one here, tagged with the failing step. Both PDF callers rely on this rather than
+// reporting a null result themselves.
+function reportPdfError(error: unknown, step: string, snapshotId: string, extra: Record<string, unknown> = {}) {
+  Sentry.captureException(error, {
+    tags: { module: 'valuation/pdf', step },
+    extra: { snapshot_id: snapshotId, ...extra },
+  });
+}
 
 /**
  * Renders the print-only report page for a snapshot to PDF via PDFShift
@@ -19,12 +30,14 @@ export async function renderAndUploadReportPdf(
   const serviceKey = process.env.VALUATION_SERVICE_KEY;
   if (!serviceKey) {
     console.error('VALUATION_SERVICE_KEY is not set -- cannot render PDF for', snapshotId);
+    reportPdfError(new Error('VALUATION_SERVICE_KEY is not set'), 'config', snapshotId);
     return null;
   }
 
   const pdfshiftKey = process.env.PDFSHIFT_API_KEY;
   if (!pdfshiftKey) {
     console.error('PDFSHIFT_API_KEY is not set -- cannot render PDF for', snapshotId);
+    reportPdfError(new Error('PDFSHIFT_API_KEY is not set'), 'config', snapshotId);
     return null;
   }
 
@@ -55,6 +68,12 @@ export async function renderAndUploadReportPdf(
       console.error(
         `PDFShift request for snapshot ${snapshotId} failed with ${pdfshiftResponse.status}: ${errorBody}`
       );
+      reportPdfError(
+        new Error(`PDFShift request failed with ${pdfshiftResponse.status}`),
+        'pdfshift_request',
+        snapshotId,
+        { status: pdfshiftResponse.status, response_body: errorBody.slice(0, 1000) }
+      );
       return null;
     }
 
@@ -62,11 +81,13 @@ export async function renderAndUploadReportPdf(
 
     // Path is company-scoped so an admin browsing storage can find every
     // report for a client without cross-referencing snapshot IDs.
-    const { data: snapshot } = await supabaseAdmin
+    const { data: snapshot, error: snapshotLookupError } = await supabaseAdmin
       .from('valuation_snapshots')
       .select('company_id')
       .eq('id', snapshotId)
       .single();
+    // Not fatal -- the upload falls back to an 'unknown/' path below -- but worth knowing about
+    if (snapshotLookupError) reportPdfError(snapshotLookupError, 'snapshot_lookup', snapshotId);
 
     const storagePath = `${snapshot?.company_id || 'unknown'}/${snapshotId}.pdf`;
 
@@ -76,6 +97,7 @@ export async function renderAndUploadReportPdf(
 
     if (uploadError) {
       console.error('PDF upload error for snapshot', snapshotId, uploadError);
+      reportPdfError(uploadError, 'storage_upload', snapshotId, { storage_path: storagePath });
       return null;
     }
 
@@ -85,20 +107,26 @@ export async function renderAndUploadReportPdf(
 
     if (signedUrlError || !signedUrlData) {
       console.error('Signed URL error for snapshot', snapshotId, signedUrlError);
+      reportPdfError(signedUrlError ?? new Error('createSignedUrl returned no data'), 'signed_url', snapshotId, {
+        storage_path: storagePath,
+      });
       return null;
     }
 
-    await supabaseAdmin
+    // A failure here still returns the URL, but the snapshot row never records it
+    const { error: reportUrlUpdateError } = await supabaseAdmin
       .from('valuation_snapshots')
       .update({
         report_url: signedUrlData.signedUrl,
         report_generated_at: new Date().toISOString(),
       })
       .eq('id', snapshotId);
+    if (reportUrlUpdateError) reportPdfError(reportUrlUpdateError, 'report_url_update', snapshotId);
 
     return signedUrlData.signedUrl;
   } catch (error) {
     console.error('PDF render error for snapshot', snapshotId, error);
+    reportPdfError(error, 'unhandled', snapshotId);
     return null;
   }
 }

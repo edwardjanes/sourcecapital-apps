@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { renderAndUploadReportPdf } from '@/lib/valuation/pdf';
 
@@ -15,6 +16,10 @@ export async function POST(
   const serviceKey = process.env.VALUATION_SERVICE_KEY;
   if (!serviceKey) {
     console.error('VALUATION_SERVICE_KEY is not set -- refusing all requests to /api/valuation/[snapshotId]/pdf');
+    Sentry.captureMessage('VALUATION_SERVICE_KEY is not set -- refusing all requests', {
+      level: 'error',
+      tags: { route: 'api/valuation/[snapshotId]/pdf', step: 'config' },
+    });
     return unauthorized();
   }
   const providedKey = request.headers.get('x-service-key');
@@ -32,6 +37,10 @@ export async function POST(
 
   if (findError) {
     console.error('Snapshot lookup error:', findError);
+    Sentry.captureException(findError, {
+      tags: { route: 'api/valuation/[snapshotId]/pdf', step: 'snapshot_lookup' },
+      extra: { snapshot_id: snapshotId },
+    });
     return NextResponse.json({ error: 'Failed to look up snapshot' }, { status: 500 });
   }
   if (!snapshot) {
