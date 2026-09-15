@@ -20,3 +20,5 @@ export default withSentryConfig(nextConfig, {
     },
   },
 });
+
+// Trigger rebuild: verify SENTRY_AUTH_TOKEN (just added in Vercel) uploads source maps.
