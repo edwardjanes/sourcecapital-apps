@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { submitDeck } from "@/lib/submitDeck";
 
 const TEST_SUBMISSION_ID = "b8a652a9-3b16-4f82-a796-d68ef92fee74";
 
@@ -32,19 +33,20 @@ export default function DevPage() {
     if (!quickFile) { setError("Drop a PDF first"); return; }
     setQuickSubmitting(true);
     setError(null);
-    const fd = new FormData();
-    fd.append("firstName", "Dev");
-    fd.append("lastName", "Test");
-    fd.append("email", "dev@test.com");
-    fd.append("businessName", quickFile.name.replace(".pdf", ""));
-    fd.append("website", "https://example.com");
-    fd.append("country", "United Kingdom");
-    fd.append("deck", quickFile);
     try {
-      const res = await fetch("/api/submit", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Submit failed");
-      router.push(`/investment-score/analysing/${data.id}`);
+      const result = await submitDeck({
+        file: quickFile,
+        fields: {
+          firstName: "Dev",
+          lastName: "Test",
+          email: "dev@test.com",
+          businessName: quickFile.name.replace(".pdf", ""),
+          website: "https://example.com",
+          country: "United Kingdom",
+        },
+      });
+      if (result.status === "free_limit") throw new Error("free_limit_reached for dev@test.com");
+      router.push(`/investment-score/analysing/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setQuickSubmitting(false);

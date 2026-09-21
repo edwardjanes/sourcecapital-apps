@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
+import { submitDeck } from "@/lib/submitDeck";
+import { MAX_DECK_BYTES, MAX_DECK_MB } from "@/lib/errorHandler";
 
 const COUNTRIES = [
   "Australia", "Austria", "Belgium", "Brazil", "Canada", "Chile", "China",
@@ -70,48 +72,41 @@ export default function UploadPage() {
     e.preventDefault();
     if (!file) { setError("Please upload your pitch deck PDF."); return; }
     if (!country) { setError("Please select your country."); return; }
-    if (file.size > 20 * 1024 * 1024) { setError("File must be under 20MB."); return; }
+    if (file.size > MAX_DECK_BYTES) { setError(`File must be under ${MAX_DECK_MB}MB.`); return; }
 
     setSubmitting(true);
     setError("");
 
-    const fd = new FormData();
-    fd.append("firstName", lead!.firstName);
-    fd.append("lastName", lead!.lastName);
-    fd.append("email", lead!.email);
-    fd.append("businessName", businessName);
-    fd.append("website", website);
-    fd.append("country", country);
-    fd.append("deck", file);
-
     try {
-      const res = await fetch("/api/submit", { method: "POST", body: fd });
-      const data = await res.json();
+      const result = await submitDeck({
+        file,
+        fields: {
+          firstName: lead!.firstName,
+          lastName: lead!.lastName,
+          email: lead!.email,
+          businessName,
+          website,
+          country,
+        },
+      });
 
-      console.log("[upload] API response:", { status: res.status, ok: res.ok, error: data.error, data });
-
-      if (!res.ok) {
-        // Handle free limit - redirect to upsell
-        if (data.error === "free_limit_reached") {
-          console.log("[upload] Free limit reached, redirecting to upsell", { submissionId: data.existingSubmissionId });
-          setSubmitting(false);
-          sessionStorage.removeItem("deckscore-lead");
-          router.push(`/upsell?reason=free_limit&submission_id=${data.existingSubmissionId}`);
-          return;
-        }
-        console.log("[upload] Error but not free_limit_reached, throwing:", data.error);
-        throw new Error(data.error || "Submission failed");
+      // Handle free limit - redirect to upsell
+      if (result.status === "free_limit") {
+        setSubmitting(false);
+        sessionStorage.removeItem("deckscore-lead");
+        router.push(`/upsell?reason=free_limit&submission_id=${result.existingSubmissionId}`);
+        return;
       }
 
       posthog.capture("deck_uploaded", { business_name: businessName, country });
       posthog.capture("deck_submitted", {
-        submission_id: data.id,
+        submission_id: result.id,
         business_name: businessName,
         country,
       });
 
       sessionStorage.removeItem("deckscore-lead");
-      router.push(`/analysing/${data.id}`);
+      router.push(`/analysing/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);
@@ -197,7 +192,7 @@ export default function UploadPage() {
 
           {/* File Upload */}
           <div style={{ marginBottom: "24px" }}>
-            <label style={labelStyle}>Pitch deck (PDF, max 20MB) *</label>
+            <label style={labelStyle}>Pitch deck (PDF, max {MAX_DECK_MB}MB) *</label>
             <div
               onClick={() => fileRef.current?.click()}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -227,7 +222,7 @@ export default function UploadPage() {
                   <p style={{ fontSize: "14px", color: "#CBD5E1", marginBottom: "4px" }}>
                     <span style={{ color: "#02d970", fontWeight: 600 }}>Click to upload</span> or drag and drop
                   </p>
-                  <p style={{ fontSize: "12px", color: "#475569" }}>PDF only · Max 20MB</p>
+                  <p style={{ fontSize: "12px", color: "#475569" }}>PDF only · Max {MAX_DECK_MB}MB</p>
                 </div>
               )}
             </div>

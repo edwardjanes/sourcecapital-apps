@@ -4,23 +4,31 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { classifyUploadError } from "@/lib/errorHandler";
 import { createOrUpdateContact as createGHLContact } from "@/lib/ghl";
 import { createOrUpdateContact as createLoopsContact } from "@/lib/loops";
+import { AWAITING_UPLOAD, createDeckUploadUrl, isValidDeckFile, readDeclaredFile } from "@/lib/deckUpload";
 
 export const maxDuration = 60;
 
+// Step 1 of the deck upload. Receives JSON metadata only — the PDF itself goes
+// straight from the browser to Storage (see src/lib/submitDeck.ts), because
+// Vercel rejects function request bodies over ~4.5 MB before the route runs.
 export async function POST(req: NextRequest) {
   let submissionId: string | undefined;
 
   try {
-    const formData = await req.formData();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
 
-    const firstName    = (formData.get("firstName") as string)?.trim();
-    const lastName     = (formData.get("lastName") as string)?.trim();
-    const email        = (formData.get("email") as string)?.trim().toLowerCase();
-    const businessName = (formData.get("businessName") as string)?.trim();
-    const website      = (formData.get("website") as string)?.trim();
-    const country      = (formData.get("country") as string)?.trim();
-    const file         = formData.get("deck") as File | null;
-    const userId       = (formData.get("userId") as string | null) || null;
+    const str = (key: string) => (typeof body[key] === "string" ? (body[key] as string).trim() : "");
+    const firstName    = str("firstName");
+    const lastName     = str("lastName");
+    const email        = str("email").toLowerCase();
+    const businessName = str("businessName");
+    const website      = str("website");
+    const country      = str("country");
+    const file         = readDeclaredFile(body);
+    const userId       = str("userId") || null;
 
     // Email is optional for logged-in users (userId present)
     if (!firstName || !businessName || !country || (!userId && !email)) {
@@ -32,6 +40,9 @@ export async function POST(req: NextRequest) {
       let existingQuery = supabaseAdmin
         .from("deck_submissions")
         .select("id, status, score")
+        // An abandoned direct upload leaves an awaiting_upload row; it must not
+        // use up the free analysis (the old flow deleted the row on failure).
+        .neq("status", AWAITING_UPLOAD)
         .limit(1);
 
       if (userId) {
@@ -65,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Classify file errors before touching the DB
-    if (!file || file.type !== "application/pdf" || file.size === 0 || file.size > 25 * 1024 * 1024) {
+    if (!isValidDeckFile(file)) {
       const result = classifyUploadError(file);
       return NextResponse.json({ error: result.user_facing_message, action: result.action }, { status: 400 });
     }
@@ -80,7 +91,7 @@ export async function POST(req: NextRequest) {
         business_name: businessName,
         website:       website || null,
         country,
-        status:        "pending",
+        status:        AWAITING_UPLOAD,
         ...(userId ? { user_id: userId } : {}),
       })
       .select("id")
@@ -136,42 +147,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Upload PDF to Supabase Storage
-    const fileBuffer = await file.arrayBuffer();
-    const filePath   = `${submissionId}/${file.name}`;
-
-    const { error: storageError } = await supabaseAdmin.storage
-      .from("decks")
-      .upload(filePath, fileBuffer, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-
-    if (storageError) {
-      console.error("Storage upload error:", storageError);
-      const result = classifyUploadError(file, storageError.message);
-      Sentry.captureException(new Error(storageError.message), {
+    // 2. Signed URL so the browser can upload the PDF directly to Storage
+    try {
+      const { path, token } = await createDeckUploadUrl(submissionId!, file.name);
+      return NextResponse.json({ id: submissionId, path, token });
+    } catch (storageError) {
+      const message = storageError instanceof Error ? storageError.message : String(storageError);
+      console.error("Signed upload URL error:", storageError);
+      const result = classifyUploadError(file, message);
+      Sentry.captureException(storageError, {
         tags: { recovery_action: result.action, submission_id: submissionId },
         extra: { business_name: businessName, file_name: file.name, file_size: file.size },
       });
       await supabaseAdmin.from("deck_submissions").delete().eq("id", submissionId);
       return NextResponse.json({ error: result.user_facing_message, action: result.action }, { status: 500 });
     }
-
-    // 3. Update record with file path
-    await supabaseAdmin
-      .from("deck_submissions")
-      .update({ deck_file_path: filePath })
-      .eq("id", submissionId);
-
-    // 4. Increment analyses_used for logged-in users
-    if (userId) {
-      await supabaseAdmin.rpc("increment_analyses_used", { user_id_input: userId });
-    }
-
-    return NextResponse.json({ id: submissionId });
   } catch (err) {
     console.error("Submit error:", err);
+    Sentry.captureException(err, { tags: { type: "submit_route_uncaught" }, extra: { submission_id: submissionId } });
     if (submissionId) {
       await supabaseAdmin
         .from("deck_submissions")

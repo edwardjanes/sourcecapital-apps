@@ -25,6 +25,8 @@ export default async function DashboardPage() {
     .from("deck_submissions")
     .select("id, business_name, created_at, status, score, analysis_json")
     .eq("user_id", user.id)
+    // Hide uploads that never finished (see /api/submit/confirm)
+    .neq("status", "awaiting_upload")
     .order("created_at", { ascending: false })
     .limit(50);
 

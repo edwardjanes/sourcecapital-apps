@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { submitDeck } from "@/lib/submitDeck";
+import { MAX_DECK_BYTES, MAX_DECK_MB } from "@/lib/errorHandler";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -96,22 +98,18 @@ export default function DashboardClient({
     e.preventDefault();
     if (!file) { setError("Please upload your pitch deck PDF."); return; }
     if (!country) { setError("Please select your country."); return; }
-    if (file.size > 20 * 1024 * 1024) { setError("File must be under 20MB."); return; }
+    if (file.size > MAX_DECK_BYTES) { setError(`File must be under ${MAX_DECK_MB}MB.`); return; }
     setSubmitting(true); setError("");
-    const fd = new FormData();
-    fd.append("firstName", firstName); fd.append("lastName", "");
-    fd.append("email", userEmail); fd.append("businessName", businessName);
-    fd.append("website", website); fd.append("country", country);
-    fd.append("deck", file); fd.append("userId", userId);
     try {
-      const res = await fetch("/api/submit", { method: "POST", body: fd });
-      const data = await res.json();
-      if (res.status === 403 && data.error === "free_limit_reached") {
-        setLimitReached({ existingId: data.existingSubmissionId });
+      const result = await submitDeck({
+        file,
+        fields: { firstName, lastName: "", email: userEmail, businessName, website, country, userId },
+      });
+      if (result.status === "free_limit") {
+        setLimitReached({ existingId: result.existingSubmissionId });
         setShowUploadForm(false); setSubmitting(false); return;
       }
-      if (!res.ok) throw new Error(data.error || "Submission failed");
-      router.push(`/investment-score/analysing/${data.id}`);
+      router.push(`/investment-score/analysing/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setSubmitting(false);
@@ -274,7 +272,7 @@ export default function DashboardClient({
                     <p style={{ fontSize: "15px", fontWeight: 600, marginBottom: "4px", color: C.text }}>
                       <span style={{ color: C.secondary }}>Click to upload</span> or drag and drop
                     </p>
-                    <p style={{ fontSize: "13px", color: C.textMuted }}>PDF only · Max 20MB</p>
+                    <p style={{ fontSize: "13px", color: C.textMuted }}>PDF only · Max {MAX_DECK_MB}MB</p>
                   </>
                 ) : (
                   <>
@@ -315,7 +313,7 @@ export default function DashboardClient({
                   </select>
                 </div>
                 <div style={{ marginBottom: "14px" }}>
-                  <label style={labelStyle}>Pitch deck (PDF, max 20MB) *</label>
+                  <label style={labelStyle}>Pitch deck (PDF, max {MAX_DECK_MB}MB) *</label>
                   <div
                     onClick={() => fileRef.current?.click()}
                     onDragOver={e => { e.preventDefault(); setDragOver(true); }}

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { submitDeck } from "@/lib/submitDeck";
+import { MAX_DECK_BYTES, MAX_DECK_MB } from "@/lib/errorHandler";
 
 const COUNTRIES = [
   "Australia", "Austria", "Belgium", "Brazil", "Canada", "Chile", "China",
@@ -81,8 +83,8 @@ export default function AdminUploadPage() {
         setError("Please upload a PDF file");
         return;
       }
-      if (selectedFile.size > 25 * 1024 * 1024) {
-        setError("File must be smaller than 25MB");
+      if (selectedFile.size > MAX_DECK_BYTES) {
+        setError(`File must be smaller than ${MAX_DECK_MB}MB`);
         return;
       }
       setFile(selectedFile);
@@ -103,33 +105,17 @@ export default function AdminUploadPage() {
     setIsLoading(true);
 
     try {
-      const submitFormData = new FormData();
-      submitFormData.append("businessName", formData.businessName);
-      submitFormData.append("website", formData.website);
-      submitFormData.append("country", formData.country);
-      submitFormData.append("deck", file);
-
-      const response = await fetch("/api/admin/submit", {
-        method: "POST",
-        body: submitFormData,
+      const result = await submitDeck({
+        file,
+        endpoint: "/api/admin/submit",
+        fields: {
+          businessName: formData.businessName,
+          website: formData.website,
+          country: formData.country,
+        },
       });
-
-      const text = await response.text();
-      console.log("API response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        console.error("Failed to parse JSON:", parseErr, "Response was:", text);
-        setError(`Server error: ${text.substring(0, 150)}`);
-        return;
-      }
-
-      if (!response.ok) {
-        setError(data.message || data.error || "Failed to upload deck");
-        return;
-      }
+      if (result.status !== "ok") throw new Error("Unexpected free-limit response for an admin upload");
+      const data = { id: result.id };
 
       setSuccessId(data.id);
       setFormData({ businessName: "", website: "", country: "" });
