@@ -65,9 +65,48 @@ export const CURRENCY_BY_COUNTRY: Partial<Record<keyof typeof COUNTRIES, string>
 };
 export const DEFAULT_CURRENCY = 'USD';
 
+// Callers pass the country as a display name ("United Kingdom" -- what both the
+// engine's own profile step and the Raise HQ portal wizard store), so every
+// country-keyed lookup has to go through this rather than indexing COUNTRIES /
+// CURRENCY_BY_COUNTRY directly. ISO codes ("GB") are accepted too.
+export const COUNTRY_NAME_TO_CODE: Record<string, keyof typeof COUNTRIES> = {
+  'united states': 'US', 'usa': 'US', 'us': 'US',
+  'united kingdom': 'GB', 'uk': 'GB', 'britain': 'GB',
+  'germany': 'DE',
+  'france': 'FR',
+  'netherlands': 'NL',
+  'ireland': 'IE',
+  'spain': 'ES',
+  'italy': 'IT',
+  'sweden': 'SE',
+  'switzerland': 'CH',
+  'israel': 'IL',
+  'uae': 'AE', 'united arab emirates': 'AE',
+  'singapore': 'SG',
+  'hong kong': 'HK',
+  'india': 'IN',
+  'china': 'CN',
+  'japan': 'JP',
+  'south korea': 'KR', 'korea': 'KR',
+  'canada': 'CA',
+  'brazil': 'BR',
+  'mexico': 'MX',
+  'australia': 'AU',
+  'south africa': 'ZA',
+  'nigeria': 'NG',
+  'poland': 'PL',
+};
+
+export function resolveCountryCode(country: string | undefined | null): keyof typeof COUNTRIES {
+  const raw = (country || '').trim();
+  if (raw && raw !== 'default' && raw.toUpperCase() in COUNTRIES) {
+    return raw.toUpperCase() as keyof typeof COUNTRIES;
+  }
+  return COUNTRY_NAME_TO_CODE[raw.toLowerCase()] || 'default';
+}
+
 export function getCurrencyForCountry(country: string | undefined | null): string {
-  if (!country) return DEFAULT_CURRENCY;
-  return CURRENCY_BY_COUNTRY[country as keyof typeof COUNTRIES] ?? DEFAULT_CURRENCY;
+  return CURRENCY_BY_COUNTRY[resolveCountryCode(country)] ?? DEFAULT_CURRENCY;
 }
 
 export const INDUSTRIES = {
