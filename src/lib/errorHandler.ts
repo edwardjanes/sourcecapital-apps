@@ -40,8 +40,20 @@ export function serializeError(result: ErrorResult, attempt?: number): string {
 
 // ── File / upload error classification ───────────────────────────────────────
 
+// Single deck size limit, shared by the upload pages, the submit routes and
+// matching the `decks` bucket's file_size_limit (20 MB). Change all three together.
+export const MAX_DECK_MB = 20;
+export const MAX_DECK_BYTES = MAX_DECK_MB * 1024 * 1024;
+
+const FILE_TOO_LARGE_MESSAGE =
+  `Your file is over ${MAX_DECK_MB} MB. Try compressing images in your deck or exporting at a slightly lower quality — most decks come in well under 10 MB.`;
+
+// Only the declared type and size are needed, so this works for a File in the
+// browser and for the metadata the submit routes receive.
+export type DeckFileInfo = { type: string; size: number };
+
 export function classifyUploadError(
-  file: File | null,
+  file: DeckFileInfo | null,
   storageErrorMessage?: string
 ): ErrorResult {
   if (!file) {
@@ -49,7 +61,7 @@ export function classifyUploadError(
       action: "REQUEST_REUPLOAD",
       user_facing_message:
         "We didn't receive a file. Please select your pitch deck PDF and try again — we're looking forward to reviewing it!",
-      technical_detail: "No file in FormData",
+      technical_detail: "No file details in request",
     };
   }
 
@@ -71,17 +83,23 @@ export function classifyUploadError(
     };
   }
 
-  if (file.size > 25 * 1024 * 1024) {
+  if (file.size > MAX_DECK_BYTES) {
     return {
       action: "REQUEST_REUPLOAD",
-      user_facing_message:
-        "Your file is over 25 MB. Try compressing images in your deck or exporting at a slightly lower quality — most decks come in well under 10 MB.",
-      technical_detail: `File size ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds 25 MB limit`,
+      user_facing_message: FILE_TOO_LARGE_MESSAGE,
+      technical_detail: `File size ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds ${MAX_DECK_MB} MB limit`,
     };
   }
 
   // Storage-level failure
   const msg = storageErrorMessage?.toLowerCase() ?? "";
+  if (msg.includes("maximum allowed size") || msg.includes("too large")) {
+    return {
+      action: "REQUEST_REUPLOAD",
+      user_facing_message: FILE_TOO_LARGE_MESSAGE,
+      technical_detail: `Storage rejected file size: ${storageErrorMessage}`,
+    };
+  }
   if (msg.includes("bucket") || msg.includes("storage")) {
     return {
       action: "ESCALATE_TO_SUPPORT",

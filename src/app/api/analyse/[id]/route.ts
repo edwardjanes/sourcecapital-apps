@@ -10,6 +10,7 @@ import { compressPdf } from "@/lib/compressPdf";
 import { sendAnalysisResultEmail } from "@/lib/loops";
 import { createOrUpdateContact as createGHLContact } from "@/lib/ghl";
 import { createOrUpdateContact as createLoopsContact } from "@/lib/loops";
+import { AWAITING_UPLOAD } from "@/lib/deckUpload";
 
 export const maxDuration = 300; // 5 minutes — allows time for large deck analysis
 
@@ -56,6 +57,12 @@ export async function POST(
 
   if (submission.status === "analysing") {
     return NextResponse.json({ message: "Analysis already in progress" });
+  }
+
+  // The browser is still uploading the PDF straight to Storage (or gave up).
+  // Leave the row alone so it isn't marked as an error before the upload lands.
+  if (submission.status === AWAITING_UPLOAD) {
+    return NextResponse.json({ error: "Deck upload not finished" }, { status: 409 });
   }
 
   if (!submission.deck_file_path) {

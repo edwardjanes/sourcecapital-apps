@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { classifyUploadError } from "@/lib/errorHandler";
-import { compressPdf } from "@/lib/compressPdf";
+import { AWAITING_UPLOAD, createDeckUploadUrl, isValidDeckFile, readDeclaredFile } from "@/lib/deckUpload";
 
 export const maxDuration = 60;
 
@@ -47,12 +47,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const formData = await req.formData();
+    // JSON metadata only — the PDF is uploaded straight to Storage by the
+    // browser (see src/lib/submitDeck.ts) to stay under Vercel's body limit.
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
 
-    const businessName = (formData.get("businessName") as string)?.trim();
-    const website      = (formData.get("website") as string)?.trim();
-    const country      = (formData.get("country") as string)?.trim();
-    const file         = formData.get("deck") as File | null;
+    const businessName = typeof body.businessName === "string" ? body.businessName.trim() : "";
+    const country      = typeof body.country === "string" ? body.country.trim() : "";
+    const file         = readDeclaredFile(body);
 
     // Validate required fields
     if (!businessName || !country) {
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Classify file errors before touching the DB
-    if (!file || file.type !== "application/pdf" || file.size === 0 || file.size > 25 * 1024 * 1024) {
+    if (!isValidDeckFile(file)) {
       const result = classifyUploadError(file);
       return NextResponse.json({ error: result.user_facing_message, action: result.action }, { status: 400 });
     }
@@ -74,7 +78,7 @@ export async function POST(req: NextRequest) {
         email:         "admin@sourcecapital.co.uk",
         business_name: businessName,
         country,
-        status:        "pending",
+        status:        AWAITING_UPLOAD,
       })
       .select("id")
       .single();
@@ -87,47 +91,25 @@ export async function POST(req: NextRequest) {
     submissionId = submission.id;
     console.log(`[admin-submit] Created submission ${submissionId} for ${businessName}`);
 
-    // 2. Compress PDF and upload to Supabase Storage
-    let fileBuffer = await file.arrayBuffer();
-    const filePath   = `${submissionId}/${file.name}`;
-
+    // 2. Signed URL for the direct upload. No compression here: /api/analyse
+    // compresses the stored PDF before sending it to Claude.
     try {
-      const compressed = await compressPdf(fileBuffer);
-      fileBuffer = compressed.data.buffer as ArrayBuffer;
-      console.log(`[admin-submit] Compressed PDF: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.compressedBytes / 1024 / 1024).toFixed(1)}MB`);
-    } catch (compressErr) {
-      console.warn("[admin-submit] PDF compression failed, continuing with original:", compressErr);
-    }
-
-    const { error: storageError } = await supabaseAdmin.storage
-      .from("decks")
-      .upload(filePath, fileBuffer, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-
-    if (storageError) {
-      console.error("Storage upload error:", storageError);
-      const result = classifyUploadError(file, storageError.message);
-      Sentry.captureException(new Error(storageError.message), {
+      const { path, token } = await createDeckUploadUrl(submissionId!, file.name);
+      return NextResponse.json({ id: submissionId, path, token });
+    } catch (storageError) {
+      const message = storageError instanceof Error ? storageError.message : String(storageError);
+      console.error("Signed upload URL error:", storageError);
+      const result = classifyUploadError(file, message);
+      Sentry.captureException(storageError, {
         tags: { recovery_action: result.action, submission_id: submissionId },
         extra: { business_name: businessName, file_name: file.name, file_size: file.size },
       });
       await supabaseAdmin.from("deck_submissions").delete().eq("id", submissionId);
       return NextResponse.json({ error: result.user_facing_message, action: result.action }, { status: 500 });
     }
-
-    // 3. Update record with file path
-    await supabaseAdmin
-      .from("deck_submissions")
-      .update({ deck_file_path: filePath })
-      .eq("id", submissionId);
-
-    console.log(`[admin-submit] Upload complete for ${submissionId}`);
-
-    return NextResponse.json({ id: submissionId });
   } catch (err) {
     console.error("Admin submit error:", err);
+    Sentry.captureException(err, { tags: { type: "admin_submit_route_uncaught" }, extra: { submission_id: submissionId } });
     if (submissionId) {
       await supabaseAdmin
         .from("deck_submissions")
