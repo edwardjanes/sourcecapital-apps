@@ -36,10 +36,14 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Shown while the browser is on its way to Google or the dashboard, which can
+  // take several seconds; without it the page looks like nothing happened.
+  const [status, setStatus] = useState("");
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError("");
+    setStatus("Redirecting you to Google…");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -48,6 +52,7 @@ function LoginContent() {
     });
     if (error) {
       setError(error.message);
+      setStatus("");
       setLoading(false);
     }
     // On success, browser redirects to Google — no further action needed
@@ -74,12 +79,17 @@ function LoginContent() {
         setMode("login");
       }
     } else {
+      setStatus("Signing you in…");
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
+        setStatus("");
       } else {
+        // Keep the loading state until the next page replaces this one.
+        setStatus("Signed in. Redirecting you now…");
         router.push(nextUrl);
         router.refresh();
+        return;
       }
     }
     setLoading(false);
@@ -107,6 +117,13 @@ function LoginContent() {
           {success && (
             <div style={{ background: "rgba(3,251,131,0.08)", border: "1px solid rgba(3,251,131,0.25)", borderRadius: "8px", padding: "12px", marginBottom: "20px", fontSize: "15px", color: GREEN }}>
               {success}
+            </div>
+          )}
+
+          {status && (
+            <div role="status" aria-live="polite" style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(3,251,131,0.08)", border: "1px solid rgba(3,251,131,0.25)", borderRadius: "8px", padding: "12px", marginBottom: "20px", fontSize: "15px", color: GREEN }}>
+              <span style={{ width: "16px", height: "16px", flexShrink: 0, border: "2px solid rgba(3,251,131,0.25)", borderTopColor: GREEN, borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+              {status}
             </div>
           )}
 
