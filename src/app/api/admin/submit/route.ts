@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { classifyUploadError } from "@/lib/errorHandler";
+import { hasAdminIngestToken } from "@/lib/adminIngestToken";
 import { AWAITING_UPLOAD, createDeckUploadUrl, isValidDeckFile, readDeclaredFile } from "@/lib/deckUpload";
 
 export const maxDuration = 60;
@@ -11,40 +12,43 @@ export async function POST(req: NextRequest) {
   let submissionId: string | undefined;
 
   try {
-    // Verify the caller is an authenticated sc_admin before doing anything else
-    const cookieHeader = req.headers.get("cookie") || "";
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => {
-            return cookieHeader.split("; ").filter(Boolean).map((c) => {
-              const [name, value] = c.split("=");
-              return { name, value };
-            });
+    // Verify the caller is an authenticated sc_admin, or a script holding the
+    // admin ingest token (see src/lib/adminIngestToken.ts), before doing anything else
+    if (!hasAdminIngestToken(req)) {
+      const cookieHeader = req.headers.get("cookie") || "";
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll: () => {
+              return cookieHeader.split("; ").filter(Boolean).map((c) => {
+                const [name, value] = c.split("=");
+                return { name, value };
+              });
+            },
+            setAll: () => {},
           },
-          setAll: () => {},
-        },
+        }
+      );
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-    );
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("sc_admin")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("sc_admin")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError || !profile?.sc_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      if (profileError || !profile?.sc_admin) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     // JSON metadata only — the PDF is uploaded straight to Storage by the
@@ -94,8 +98,8 @@ export async function POST(req: NextRequest) {
     // 2. Signed URL for the direct upload. No compression here: /api/analyse
     // compresses the stored PDF before sending it to Claude.
     try {
-      const { path, token } = await createDeckUploadUrl(submissionId!, file.name);
-      return NextResponse.json({ id: submissionId, path, token });
+      const { path, token, uploadUrl } = await createDeckUploadUrl(submissionId!, file.name);
+      return NextResponse.json({ id: submissionId, path, token, uploadUrl });
     } catch (storageError) {
       const message = storageError instanceof Error ? storageError.message : String(storageError);
       console.error("Signed upload URL error:", storageError);
