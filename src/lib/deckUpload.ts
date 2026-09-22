@@ -35,5 +35,7 @@ export async function createDeckUploadUrl(submissionId: string, fileName: string
   const path = `${submissionId}/${safeFileName(fileName)}`;
   const { data, error } = await supabaseAdmin.storage.from("decks").createSignedUploadUrl(path);
   if (error || !data) throw error ?? new Error("createSignedUploadUrl returned no data");
-  return { path: data.path, token: data.token };
+  // uploadUrl lets non-browser callers PUT the file directly (the
+  // deck-funnel-submit skill); the browser uses path + token.
+  return { path: data.path, token: data.token, uploadUrl: data.signedUrl };
 }
