@@ -6,6 +6,12 @@
 
 ## Recent Updates (September 2026)
 
+### Status (22 Sep 2026)
+- Prod deck analysis working again on the new workspace-scoped Anthropic key (verified 22 Sep). Valuation engine currency fix merged (PR #12).
+- ✅ **Security — PR #17 trigger applied to Supabase 22 Sep** (`supabase/migrations/20260922_protect_profile_privileged_columns.sql`): browser (anon/authenticated) clients can no longer change `sc_admin` / `plan` / `analyses_used` / `whop_order_id` on `profiles`; service_role and SECURITY DEFINER functions unaffected. Merged in PR #17 (`e3bc982`).
+- ✅ **Signup reliability — PR #18 applied to Supabase 23 Sep** (`supabase/migrations/20260923_handle_new_user_reliable.sql`): `handle_new_user()` used an unqualified table name with no `search_path` and swallowed every error, so signups could silently end up with no `profiles` row (3 of 5 users). Now schema-qualified, `search_path` pinned, `on conflict (id) do nothing`, and failures raise a WARNING instead of vanishing. Merged in PR #18 (`5540968`).
+- ⚠️ **Note:** `public.profiles` has **no `email` column** — the schema block below is wrong on this. Join `auth.users` for emails.
+
 ### Completed
 - ✅ **Comprehensive Scoring Rubrics & Hard Caps**: Formalized 8-dimension evaluation rules
   - Problem: size × pain × cost formula with hard caps for anecdotal-only severity
