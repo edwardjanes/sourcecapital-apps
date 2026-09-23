@@ -12,6 +12,9 @@ import {
   ValidationError,
 } from '@/lib/raiseListing/validation';
 import WizardStepper from './WizardStepper';
+import * as Sentry from '@sentry/nextjs';
+import { supabase } from '@/lib/supabase';
+import { checkListingFile, LISTING_UPLOADS, ListingFileField } from '@/lib/raiseListing/uploads';
 
 interface CreateListingWizardProps {
   initialListing: RaiseListing;
@@ -510,29 +513,45 @@ function Step4({ formData, errors, onChange, listingId }: StepProps & { listingI
   const errorMap = Object.fromEntries(errors.map(e => [e.field, e.message]));
   const [uploading, setUploading] = useState(false);
 
-  const handleFileUpload = async (field: 'company_logo_path' | 'pitch_deck_file_path', file: File) => {
+  // Three steps so the file never passes through a Vercel function (which
+  // rejects bodies over ~4.5 MB): get a signed upload token, upload straight
+  // to Storage, then confirm so the path is recorded on the listing.
+  const handleFileUpload = async (field: ListingFileField, file: File) => {
     if (!file) return;
+
+    const fileError = checkListingFile(field, file);
+    if (fileError) {
+      alert(fileError);
+      return;
+    }
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('field', field);
-
-      const response = await fetch(`/api/raise-listing/listings/${listingId}/upload`, {
-        method: 'POST',
-        body: formData,
+      const base = `/api/raise-listing/listings/${listingId}/upload`;
+      const signed = await postJson(base, {
+        field,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        onChange(field, data.file_path);
-      } else {
-        alert('Upload failed');
+      const { error: uploadError } = await supabase.storage
+        .from(LISTING_UPLOADS[field].bucket)
+        .uploadToSignedUrl(signed.path as string, signed.token as string, file, { contentType: file.type });
+
+      if (uploadError) {
+        Sentry.captureException(uploadError, {
+          tags: { context: 'listing_direct_upload' },
+          extra: { listing_id: listingId, field, file_size: file.size },
+        });
+        throw new Error('Upload failed. Please try again.');
       }
+
+      const confirmed = await postJson(`${base}/confirm`, { field, path: signed.path });
+      onChange(field, confirmed.file_path as string);
     } catch (error) {
       console.error('[upload] Error:', error);
-      alert('Upload error');
+      alert(error instanceof Error ? error.message : 'Upload error');
     } finally {
       setUploading(false);
     }
@@ -623,4 +642,32 @@ function FormField({ label, error, children }: FormFieldProps) {
       {error && <p style={{ fontSize: '12px', color: '#F87171', marginTop: '4px' }}>{error}</p>}
     </div>
   );
+}
+
+// POSTs JSON and returns the parsed body, throwing a readable error for non-2xx
+// responses. Checks the content type first so a plain-text platform error
+// (e.g. a 413 or 502 page) doesn't surface as a JSON SyntaxError.
+async function postJson(url: string, body: unknown): Promise<Record<string, unknown>> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  const data: Record<string, unknown> = isJson ? await res.json().catch(() => ({})) : {};
+
+  if (!isJson) {
+    Sentry.captureMessage(`Non-JSON response from ${url}`, {
+      level: 'error',
+      tags: { context: 'listing_upload_non_json', status: String(res.status) },
+    });
+  }
+
+  if (!res.ok || !isJson) {
+    if (typeof data.error === 'string' && data.error) throw new Error(data.error);
+    if (res.status === 413) throw new Error('File too large to upload. Please compress it and try again.');
+    throw new Error(`Upload failed (error ${res.status}). Please try again.`);
+  }
+  return data;
 }
