@@ -10,7 +10,7 @@ import { deriveFcfeByYear } from './fcf';
 import { computeScorecard } from './scorecard';
 import { computeChecklist } from './checklist';
 import { computeVcMethod } from './vc';
-import { computeDcfShared } from './dcf';
+import { computeDcfShared, computeLtgTerminalValue } from './dcf';
 import { computeSimpleMultiples, ComparableCompany } from './simpleMultiples';
 import { deriveScorecardCriteriaScores, deriveChecklistCriteriaScores } from './scoring';
 import { buildDefaultParameters } from './defaults';
@@ -69,15 +69,16 @@ export async function computeValuation(
   // DCF LTG result
   const lastFcfeYear = forecastFcfeYears[forecastFcfeYears.length - 1];
   const survivalRateIndexLtg = lastFcfeYear ? lastFcfeYear.yearOffset - 1 : 0;
-  const terminalValueLtg =
-    (lastFcfeYear?.fcfe || 0) *
-    (parameters.dcf_ltg.survival_rates[survivalRateIndexLtg] || 0) *
-    (1 + parameters.dcf_ltg.terminal_growth_rate) /
-    (discountRate - parameters.dcf_ltg.terminal_growth_rate);
+  const ltgTerminalValue = computeLtgTerminalValue(
+    lastFcfeYear?.fcfe || 0,
+    parameters.dcf_ltg.survival_rates[survivalRateIndexLtg] || 0,
+    discountRate,
+    parameters.dcf_ltg.terminal_growth_rate
+  );
 
   const dcfLtgResult = computeDcfShared(
     forecastFcfeYears,
-    terminalValueLtg,
+    ltgTerminalValue.terminalValue,
     discountRate,
     parameters.dcf_shared.illiquidity_discount,
     parameters.dcf_shared.non_operating_cash,
@@ -162,6 +163,7 @@ export async function computeValuation(
     lowBound,
     highBound,
     perMethod,
+    ltgTerminalValue,
     discountRate,
     fcfeByYear,
     generatedAt: new Date().toISOString(),

@@ -321,36 +321,49 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
       g: parameters.dcf_ltg.terminal_growth_rate,
       ltg: Math.round(r.perMethod.find((m: { method: string }) => m.method === "dcf_ltg")?.valuation ?? 0),
       weighted: Math.round(r.weightedValuation),
+      floored: r.ltgTerminalValue?.floored,
+      impliedMultiple: r.ltgTerminalValue?.impliedMultiple ?? 0,
     };
   };
 
-  it("is nowhere guarded, so g >= r silently returns zero", async () => {
-    // The spec's "Required condition" is WACC > g, and lists "Setting g equal
-    // to or above WACC" among its Common Errors. LTG_GROWTH_RATE_DEFAULT is a
-    // flat 0.025 while the discount rate is CAPM per country x industry, and
-    // two of the 442 combinations land below it. Swiss Cleantech is r = 2.346%
-    // against g = 2.5%: the denominator goes negative, the terminal value with
-    // it, and Math.max(0, ...) hands back a clean zero at 36% of the weight.
+  it("no longer returns a silent zero when the CAPM rate falls below g", async () => {
+    // WAS THE BUG, fixed 27 Sep 2026 by MIN_LTG_SPREAD. The spec's "Required
+    // condition" is WACC > g and its Common Errors list "Setting g equal to or
+    // above WACC". LTG_GROWTH_RATE_DEFAULT is a flat 0.025 while the discount
+    // rate is CAPM per country x industry, and two of the 442 combinations land
+    // below it. Swiss Cleantech is r = 2.346% against a requested g of 2.5%:
+    // the denominator went negative, the terminal value with it, and
+    // Math.max(0, ...) handed back a clean zero at 36% of the weight.
     const ch = await run("Switzerland", "Cleantech");
-    expect(ch.discountRate).toBeLessThan(ch.g);
-    expect(ch.ltg).toBe(0);
-    // And nothing anywhere says so -- the composite still returns a number.
-    expect(ch.weighted).toBeGreaterThan(0);
+    expect(ch.discountRate).toBeLessThan(0.025); // the rate really is below g
+    expect(ch.ltg).toBeGreaterThan(0);           // and no longer collapses
+    expect(ch.floored).toBe(true);               // and says that it was capped
   });
 
-  it("produces a 290x terminal multiple when the spread is merely narrow", async () => {
-    // Worse than the zero, because this one looks like an answer. Swiss
-    // PropTech is r = 2.853%, a spread of 0.353%, so the terminal multiple is
-    // 1.025 / 0.00353 = 290x year-5 cash flow. The spec: "As the spread
-    // narrows, terminal value becomes extraordinarily sensitive."
+  it("no longer produces a 290x terminal multiple on a narrow spread", async () => {
+    // WAS THE BUG, and worse than the zero because this one looked like an
+    // answer: Swiss PropTech is r = 2.853%, a spread of 0.353% against the
+    // requested g, so the terminal multiple was 1.025 / 0.00353 = 290x year-5
+    // cash flow and dcf_ltg came out at GBP 126,182,407 for a company with GBP
+    // 900k of revenue, giving a composite of GBP 49,727,077 against the UK
+    // SaaS 3,308,842 on identical cash flows. The spec: "As the spread narrows,
+    // terminal value becomes extraordinarily sensitive."
     const ch = await run("Switzerland", "PropTech");
-    expect(ch.discountRate - ch.g).toBeCloseTo(0.00353, 5);
-    expect(ch.ltg).toBeGreaterThan(100_000_000);
+    expect(ch.discountRate - 0.025).toBeCloseTo(0.00353, 5); // the raw spread
+    expect(ch.floored).toBe(true);
+    expect(ch.impliedMultiple).toBeLessThan(35);
+    expect(ch.ltg).toBeLessThan(20_000_000);
 
-    // Same company, same financials, GBP 900k of revenue.
+    // Still high for a GBP 900k-revenue company, and deliberately so: the
+    // guardrail caps the damage, it does not fix the cause. A 2.85% cost of
+    // equity for a startup is wrong whatever the spread -- the spec says
+    // "using a mature public-company WACC for a pre-revenue startup may
+    // understate risk" -- and a stage/size premium is the real fix
+    // (ClickUp z8mad3qv19). The ratio to the UK case is now ~3x, not ~15x.
     const gb = await run("United Kingdom", "SaaS");
     expect(gb.ltg).toBe(3_169_409);
-    expect(ch.weighted / gb.weighted).toBeGreaterThan(14);
+    expect(ch.weighted / gb.weighted).toBeLessThan(4);
+    expect(ch.weighted / gb.weighted).toBeGreaterThan(2);
   });
 
   it("carries the UK SaaS baseline unchanged, so the above is not a harness artefact", async () => {
@@ -547,5 +560,101 @@ describe("DCF-LTG — divergences that are not arithmetic", () => {
     // End-year is a defensible default; recorded because it is systematically
     // conservative by roughly half a year of discounting.
     expect(Math.sqrt(1.112623) - 1).toBeCloseTo(0.0548, 4);
+  });
+});
+
+describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
+  it("leaves a healthy spread completely alone", async () => {
+    const { computeLtgTerminalValue } = await import("../dcf");
+    // UK / SaaS: r 11.2623%, g 2.5%, spread 8.7623%. Nothing should move.
+    const t = computeLtgTerminalValue(1_289_000, 0.384, 0.112623, 0.025);
+    expect(t.floored).toBe(false);
+    expect(t.growthRateUsed).toBe(0.025);
+    expect(t.spreadUsed).toBeCloseTo(0.087623, 10);
+    expect(Math.round(t.terminalValue)).toBe(5_790_151); // the pre-fix value
+    expect(t.impliedMultiple).toBeCloseTo(11.7, 1);
+  });
+
+  it("opens the spread when the discount rate is close to g", async () => {
+    const { computeLtgTerminalValue } = await import("../dcf");
+    // CH / PropTech: r 2.853%, so g cannot be 2.5%.
+    const t = computeLtgTerminalValue(1_289_000, 0.384, 0.02853, 0.025);
+    expect(t.floored).toBe(true);
+    expect(t.growthRateRequested).toBe(0.025);
+    expect(t.growthRateUsed).toBe(0.001); // LTG_GROWTH_RATE_MIN, not negative
+    expect(t.spreadUsed).toBe(0.03);
+  });
+
+  it("never lets g go negative, which clamping alone would do", async () => {
+    const { computeLtgTerminalValue } = await import("../dcf");
+    // r - minSpread is NEGATIVE here (2.346% - 3% = -0.654%), so a naive
+    // `g = min(g, r - floor)` would hand a scaling SaaS company a shrinking
+    // perpetuity. These cases come from too low a discount rate, not from any
+    // view about the company.
+    const t = computeLtgTerminalValue(1_289_000, 0.384, 0.02346, 0.025);
+    expect(0.02346 - 0.03).toBeLessThan(0);
+    expect(t.growthRateUsed).toBeGreaterThan(0);
+    expect(t.spreadUsed).toBe(0.03); // the denominator backstop, not the clamp
+    expect(t.terminalValue).toBeGreaterThan(0);
+  });
+
+  it("holds for every country x industry combination, not just the samples", async () => {
+    const { computeLtgTerminalValue, MIN_LTG_SPREAD } = await import("../dcf");
+    const { COUNTRIES, INDUSTRIES, LTG_GROWTH_RATE_DEFAULT } = await import("../referenceData");
+
+    const all = Object.entries(COUNTRIES).flatMap(([, c]) =>
+      Object.entries(INDUSTRIES).map(([, i]) =>
+        computeLtgTerminalValue(
+          1_289_000, 0.384, c.riskFree10Y + i.beta * c.equityRiskPremium, LTG_GROWTH_RATE_DEFAULT
+        )
+      )
+    );
+    expect(all.length).toBe(442);
+
+    // The three guarantees. Before the fix: 2 combinations produced a negative
+    // terminal value (then a silent valuation of 0) and 11 produced a multiple
+    // above 51x, peaking at 290x.
+    expect(all.every((t) => Number.isFinite(t.terminalValue) && t.terminalValue > 0)).toBe(true);
+    expect(Math.max(...all.map((t) => t.impliedMultiple))).toBeLessThan(35);
+    expect(all.every((t) => t.spreadUsed >= MIN_LTG_SPREAD)).toBe(true);
+    expect(all.every((t) => t.growthRateUsed > 0)).toBe(true);
+
+    // And it is a guardrail, not a rewrite: g is untouched wherever the spread
+    // was already adequate, which is 411 of the 442.
+    const untouched = all.filter((t) => !t.floored);
+    expect(untouched.length).toBe(411);
+    expect(untouched.every((t) => t.growthRateUsed === LTG_GROWTH_RATE_DEFAULT)).toBe(true);
+    expect(all.filter((t) => t.floored).length).toBe(31);
+  });
+
+  it("reports when it bound, so the report can say so", async () => {
+    // The whole point of returning `floored` rather than silently adjusting: a
+    // founder whose terminal growth was overridden should be told, and the
+    // value is capped rather than correct. The underlying cause -- a 2.35% cost
+    // of equity for a startup -- is ClickUp z8mad3qv19.
+    const { computeLtgTerminalValue } = await import("../dcf");
+    const ok = computeLtgTerminalValue(1_289_000, 0.384, 0.112623, 0.025);
+    const bound = computeLtgTerminalValue(1_289_000, 0.384, 0.02346, 0.025);
+    expect(ok.floored).toBe(false);
+    expect(bound.floored).toBe(true);
+    expect(bound.growthRateUsed).not.toBe(bound.growthRateRequested);
+  });
+
+  it("surfaces the verdict on the computeValuation output", async () => {
+    const { computeValuation } = await import("../compute");
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const d = buildDefaultParameters(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never, f.NORTHWIND_BALANCE_SHEET as never
+    );
+    const r = await computeValuation(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never,
+      { ...f.NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+    );
+    expect(r.ltgTerminalValue?.floored).toBe(false);
+    expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
+    // The locked baseline is untouched by the guardrail -- the assertion that
+    // matters most, since the fix would be worthless if it moved a good case.
+    expect(Math.round(r.weightedValuation)).toBe(3_308_842);
   });
 });

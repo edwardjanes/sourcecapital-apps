@@ -64,6 +64,21 @@ export interface DcfResult {
   valuation: number;
 }
 
+/** Gordon-growth terminal value for DCF-LTG, with the spread guardrail's verdict. */
+export interface LtgTerminalValue {
+  terminalValue: number;
+  /** Terminal growth rate as supplied in the parameters, before any clamping. */
+  growthRateRequested: number;
+  /** The rate actually used. Lower than requested when the spread floor bound. */
+  growthRateUsed: number;
+  /** The denominator actually used -- at least MIN_LTG_SPREAD. */
+  spreadUsed: number;
+  /** True when the guardrail changed the arithmetic. Report it when it does. */
+  floored: boolean;
+  /** (1 + g) / spread: terminal value per unit of terminal-year cash flow. */
+  impliedMultiple: number;
+}
+
 // --- Simple Multiples ---
 export interface SimpleMultiplesResult {
   comparables: Array<{ name: string; metric: number; multiple: number; metricType: MetricType; source?: string }>;
@@ -121,6 +136,8 @@ export interface ValuationReportOutput {
     dcfMultiple: DcfResult;
     multiples: SimpleMultiplesResult;
   };
+  /** Present only for DCF-LTG; carries whether the spread guardrail bound. */
+  ltgTerminalValue?: LtgTerminalValue;
   weightedValuation: number;
   lowBound: number;
   highBound: number;
