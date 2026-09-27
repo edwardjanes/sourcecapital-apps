@@ -231,19 +231,55 @@ export const NORTHWIND_QUESTIONNAIRE = {
  * working-capital decisions that happen to land in the final forecast year, and
  * it can overstate as easily as understate. The reinvestment form does not move,
  * because it keys on net income. That is the point of the change.
+ *
+ * UPDATED A FIFTH TIME, same day, for the SECTOR MULTIPLE RE-SOURCING. INDUSTRIES
+ * previously carried `ebitdaMultiple` and `revenueMultiple` as two independent
+ * constants with no provenance comment, contradicting each other -- SaaS held
+ * 6.77x EBITDA and 1.04x revenue, an implied mature margin of 15.4%. Both columns
+ * now come from the same source pair (Damodaran US industry data, January 2026,
+ * EV/Sales and EV/EBITDA) scaled by one documented small-company factor, so they
+ * cannot contradict each other and a test asserts they do not.
+ *
+ *   SaaS revenueMultiple  1.04 -> 3.19   +207%
+ *   SaaS ebitdaMultiple   6.77 -> 6.85     +1%
+ *
+ * That asymmetry IS the finding: the EBITDA multiple was approximately right all
+ * along and the revenue multiple was wrong by a factor of three. Three
+ * independent lines of evidence said so (AUDIT-05, AUDIT-06) -- the row
+ * contradicting itself, the comparables users actually entered (4.1-10.9x, median
+ * 6.0x), and this repo's own test comment "Development-stage SaaS typically
+ * valued at 4-8x revenue".
+ *
+ *   dcf_multiple 1,710,139 -> 4,131,506  +141.59%
+ *   vc           1,930,301 -> 1,953,111    +1.18%
+ *   dcf_ltg      1,942,032 -> 1,942,032     0.00%  (uses neither multiple)
+ *   scorecard    8,679,750 -> 8,679,750     0.00%
+ *   checklist    9,925,875 -> 9,925,875     0.00%
+ *   weighted     2,739,967 -> 3,615,309   +31.95%
+ *
+ * TWO THINGS THIS IS THE FIRST CHANGE OF THE MODEL PASS TO DO:
+ *
+ * 1. It NARROWS the method-family gap rather than widening it: qualitative mean
+ *    over cash-flow mean falls from 5.09x to 3.06x. Every prior fix -- the size
+ *    premium especially -- widened it.
+ * 2. It makes leaving `industry` blank a PENALTY instead of a bonus. `default`
+ *    moves from 3.00x/9.00x (richer than SaaS on every axis) to the whole-market
+ *    figure of 0.97x/4.75x, so a blank industry now costs -25.4% on the composite
+ *    where it used to pay +36.8%. That closes ClickUp z8mad3qv1e as a side
+ *    effect, and it affected 7 of 23 production snapshots.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 2739966.9107906944,
-	lowBound: 2476930.0873547876,
-	highBound: 3003003.734226601,
+	weightedValuation: 3615308.795314827,
+	lowBound: 3268239.1509646038,
+	highBound: 3962378.4396650507,
 	discountRate: 0.159623,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
 		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
-		{ method: 'vc', weight: 0.16, valuation: 1930301 },
+		{ method: 'vc', weight: 0.16, valuation: 1953111 },
 		{ method: 'dcf_ltg', weight: 0.36, valuation: 1942032 },
-		{ method: 'dcf_multiple', weight: 0.36, valuation: 1710139 },
+		{ method: 'dcf_multiple', weight: 0.36, valuation: 4131506 },
 		{ method: 'multiples', weight: 0, valuation: 0 },
 	],
 };

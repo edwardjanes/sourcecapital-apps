@@ -344,23 +344,36 @@ describe("Simple Multiples — inert from the portal, and its own evidence again
     expect(computeSimpleMultiples(900_000, []).valuation).toBe(0);
   });
 
-  it("carries the best available evidence that INDUSTRIES.revenueMultiple is wrong", async () => {
+  it("carried the evidence that INDUSTRIES.revenueMultiple was wrong, and it has been fixed", async () => {
     // The multiples users actually typed into the wizard, read from
     // valuation_snapshots on 27 Sep 2026 across all 11 snapshots with
-    // comparables: 4.1, 4.8, 5.2, 5.5, 6.0, 6.5, 7.2, 8.4, 10.9 -- median 6.0x
-    // revenue.
+    // comparables: median 6.0x revenue, against a table then saying 1.04x.
     const supplied = [4.1, 4.8, 5.2, 5.5, 6.0, 6.5, 7.2, 8.4, 10.9];
     const median = supplied[Math.floor(supplied.length / 2)];
     expect(median).toBe(6.0);
 
     const { INDUSTRIES } = await import("../referenceData");
-    // Against the engine's own SaaS figure. This is independent corroboration
-    // from inside the product, not an outside benchmark: whoever entered these
-    // peers thought SaaS trades near 6x revenue, and the table says 1.04x.
-    expect(INDUSTRIES.SaaS.revenueMultiple).toBe(1.04);
-    expect(median / INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(5.77, 2);
+    // Re-sourced the same day to 3.19x (Damodaran EV/Sales, January 2026, scaled
+    // by the small-company factor). The gap to what users entered closes from
+    // 5.8x to 1.9x, and is no longer a contradiction so much as the expected
+    // difference between an ENTRY multiple for a growing company and an EXIT
+    // multiple for that company five years further on -- which is exactly the
+    // substitution the DCF-EM spec warns against making.
+    expect(INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(3.19, 2);
+    expect(median / INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(1.88, 2);
 
-    // Even the lowest peer anyone entered is four times the table.
-    expect(Math.min(...supplied) / INDUSTRIES.SaaS.revenueMultiple).toBeGreaterThan(3.9);
+    // The lowest peer anyone entered used to be 3.9x the table's figure. Now it is
+    // within 30%.
+    expect(Math.min(...supplied) / INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(1.29, 2);
+  });
+
+  it("no longer contradicts this repo's own test comment about SaaS multiples", async () => {
+    // A test in this very file says "Development-stage SaaS typically valued at
+    // 4-8x revenue" while the table said 1.04x. 3.19x is below that band rather
+    // than an order of magnitude away from it -- correctly, because that comment
+    // describes development-stage ENTRY pricing and this is an exit multiple.
+    const { INDUSTRIES } = await import("../referenceData");
+    expect(INDUSTRIES.SaaS.revenueMultiple).toBeGreaterThan(1.04 * 2.5);
+    expect(INDUSTRIES.SaaS.revenueMultiple).toBeLessThan(4);
   });
 });

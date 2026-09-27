@@ -390,7 +390,7 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     const gb = await run("United Kingdom", "SaaS");
     expect(gb.discountRate).toBeCloseTo(0.159623, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(2_739_967);
+    expect(gb.weighted).toBe(3_615_309);
   });
 });
 
@@ -747,7 +747,7 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
     // The locked baseline, which the guardrail itself never moved -- it changed
     // only when the size premium and the terminal normalisation landed.
-    expect(Math.round(r.weightedValuation)).toBe(2_739_967);
+    expect(Math.round(r.weightedValuation)).toBe(3_615_309);
   });
 });
 
@@ -775,9 +775,14 @@ describe("DCF-multiple — the claims mismatch", () => {
     // choice that is right in DCF-LTG is wrong here, because there the terminal
     // value comes off the FCFE stream itself and here it does not.
     const { INDUSTRIES } = await import("../referenceData");
-    // revenueMultiple and ebitdaMultiple are both enterprise multiples; there is
-    // no equity multiple (P/E, price-to-book) anywhere in the reference table.
-    expect(Object.keys(INDUSTRIES.SaaS).sort()).toEqual(["beta", "ebitdaMultiple", "revenueMultiple"]);
+    // revenueMultiple and ebitdaMultiple are both ENTERPRISE multiples -- EV/Sales
+    // and EV/EBITDA from Damodaran's tables. There is no equity multiple (P/E,
+    // price-to-book) anywhere in the reference table, so this cannot be fixed by
+    // choosing a different column.
+    expect(Object.keys(INDUSTRIES.SaaS).sort()).toEqual(
+      ["beta", "ebitdaMultiple", "impliedMatureMargin", "revenueMultiple", "source"]
+    );
+    expect(INDUSTRIES.SaaS.source).toMatch(/EV\/|Damodaran/);
   });
 
   it("subtracts no debt, so Northwind's year-5 borrowings are never bridged", async () => {
@@ -791,67 +796,77 @@ describe("DCF-multiple — the claims mismatch", () => {
   });
 });
 
-describe("DCF-multiple — the reference table disagrees with itself", () => {
-  // The spec: EV/Revenue = EV/EBITDA x EBITDA margin, and "This is why revenue
-  // multiple selection cannot be separated from mature-margin assumptions." Its
-  // Common Errors include "Using EV/Revenue without testing mature margins".
-  const MARGIN = 2_066_000 / 8_200_000; // Northwind's year-5 EBITDA margin, 25.2%
+describe("DCF-multiple — the reference table now agrees with itself", () => {
+  // WAS A DIVERGENCE, fixed 27 Sep 2026. The table carried ebitdaMultiple and
+  // revenueMultiple as two independent constants with no provenance, and they
+  // contradicted each other: SaaS held 6.77x EBITDA and 1.04x revenue, an implied
+  // mature margin of 15.4%, while the sign of the disagreement flipped by sector
+  // (SaaS and Marketplace understated the revenue multiple against their own
+  // EBITDA multiple; Cleantech, PropTech and default overstated it).
+  //
+  // Both columns now derive from one source pair -- Damodaran's EV/Sales and
+  // EV/EBITDA, January 2026 -- scaled by a single small-company factor, which
+  // leaves the source's own implied margin untouched.
 
-  it("carries revenue multiples inconsistent with its own EBITDA multiples", async () => {
+  it("keeps every sector's two multiples consistent at its stated mature margin", async () => {
     const { INDUSTRIES } = await import("../referenceData");
-    // At a 25.2% terminal margin, SaaS's 6.77x EBITDA implies 1.71x revenue.
-    // The table says 1.04x -- a 1.64x disagreement between two columns of the
-    // same row, used by two different methods on the same company.
-    const implied = INDUSTRIES.SaaS.ebitdaMultiple * MARGIN;
-    expect(implied).toBeCloseTo(1.706, 3);
-    expect(INDUSTRIES.SaaS.revenueMultiple).toBe(1.04);
-    expect(implied / INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(1.64, 2);
-
-    // The table's 1.04x would be consistent with a 15.4% mature margin, which is
-    // low for SaaS at scale -- so the revenue multiple is the understated one.
-    expect(INDUSTRIES.SaaS.revenueMultiple / INDUSTRIES.SaaS.ebitdaMultiple).toBeCloseTo(0.154, 3);
-  });
-
-  it("does not even disagree in a consistent direction", async () => {
-    const { INDUSTRIES } = await import("../referenceData");
-    // If the two columns embedded one shared margin assumption, the ratio would
-    // be constant across sectors. It is not: SaaS and Marketplace understate the
-    // revenue multiple relative to their own EBITDA multiple, while Cleantech,
-    // PropTech and default overstate it. That is noise, not a methodology.
-    const ratio = (k: keyof typeof INDUSTRIES) =>
-      (INDUSTRIES[k].ebitdaMultiple * MARGIN) / INDUSTRIES[k].revenueMultiple;
-    expect(ratio("SaaS")).toBeGreaterThan(1.5);
-    expect(ratio("Marketplace")).toBeGreaterThan(1.5);
-    expect(ratio("Cleantech")).toBeLessThan(0.7);
-    expect(ratio("PropTech")).toBeLessThan(0.7);
-    expect(ratio("default")).toBeLessThan(0.8);
-  });
-
-  it("gives four different sectors one identical pair of multiples", async () => {
-    const { INDUSTRIES } = await import("../referenceData");
-    // Common Errors: "Treating an industry average as universally applicable."
-    // SaaS, Fintech, AI/ML and MobileApp share 6.77x and 1.04x exactly, which is
-    // the tell that these are not sector-sourced figures. There is no provenance
-    // comment anywhere on INDUSTRIES.
-    for (const k of ["Fintech", "AI_ML", "MobileApp"] as const) {
-      expect(INDUSTRIES[k].ebitdaMultiple).toBe(INDUSTRIES.SaaS.ebitdaMultiple);
-      expect(INDUSTRIES[k].revenueMultiple).toBe(INDUSTRIES.SaaS.revenueMultiple);
+    // The spec's identity: EV/Revenue = EV/EBITDA x EBITDA margin. This is the
+    // assertion that makes the old 15.4%-vs-46.6% defect unrepeatable rather than
+    // merely fixed -- any future hand-edit to one column alone fails here.
+    for (const [key, v] of Object.entries(INDUSTRIES)) {
+      expect(v.revenueMultiple / v.ebitdaMultiple, key).toBeCloseTo(v.impliedMatureMargin, 2);
     }
   });
 
-  it("makes the fallback more generous than most named sectors", async () => {
+  it("scales both columns by the same factor, so consistency survives it", async () => {
+    const { INDUSTRIES, SMALL_COMPANY_MULTIPLE_FACTOR } = await import("../referenceData");
+    // Damodaran Software (System & Application), January 2026: EV/Sales 11.41,
+    // EV/EBITDA 24.48, across 309 firms.
+    expect(SMALL_COMPANY_MULTIPLE_FACTOR).toBe(0.28);
+    expect(INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(11.41 * 0.28, 2);
+    expect(INDUSTRIES.SaaS.ebitdaMultiple).toBeCloseTo(24.48 * 0.28, 2);
+    expect(INDUSTRIES.SaaS.impliedMatureMargin).toBeCloseTo(11.41 / 24.48, 6);
+  });
+
+  it("moved the revenue multiple by 3x and the EBITDA multiple barely at all", async () => {
     const { INDUSTRIES } = await import("../referenceData");
-    // `default` is what an unmatched industry string resolves to, and it is
-    // richer than SaaS on every axis: 3.00x vs 1.04x revenue, 9.00x vs 6.77x
-    // EBITDA, and a LOWER beta (1.05 vs 1.23), which also lowers the discount
-    // rate. A fallback should not beat the thing it is standing in for.
-    expect(INDUSTRIES.default.revenueMultiple).toBeGreaterThan(INDUSTRIES.SaaS.revenueMultiple * 2.8);
-    expect(INDUSTRIES.default.ebitdaMultiple).toBeGreaterThan(INDUSTRIES.SaaS.ebitdaMultiple);
-    expect(INDUSTRIES.default.beta).toBeLessThan(INDUSTRIES.SaaS.beta);
+    // The asymmetry IS the finding: the EBITDA multiple was approximately right
+    // all along and the revenue multiple was wrong by a factor of three.
+    expect(INDUSTRIES.SaaS.revenueMultiple / 1.04).toBeCloseTo(3.07, 2); // was 1.04
+    expect(INDUSTRIES.SaaS.ebitdaMultiple / 6.77).toBeCloseTo(1.01, 2);  // was 6.77
+  });
+
+  it("no longer gives four sectors one identical pair by accident", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // SaaS, Fintech, AI/ML and MobileApp still share a pair, but now BY STATED
+    // MAPPING -- all four map to Damodaran's "Software (System & Application)",
+    // recorded in each row's `source`. That is a documented choice rather than
+    // the unexplained coincidence AUDIT-05 flagged.
+    for (const k of ["Fintech", "AI_ML", "MobileApp"] as const) {
+      expect(INDUSTRIES[k].revenueMultiple).toBe(INDUSTRIES.SaaS.revenueMultiple);
+      expect(INDUSTRIES[k].source).toMatch(/Software \(System & Application\)/);
+    }
+    // And the sectors that previously shared a pair with no reason no longer do.
+    expect(INDUSTRIES.Ecommerce.revenueMultiple).not.toBe(INDUSTRIES.Marketplace.revenueMultiple);
+  });
+
+  it("makes the fallback conservative rather than the most generous row", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // WAS THE DEFECT (z8mad3qv1e): `default` held 3.00x revenue and 9.00x EBITDA,
+    // richer than SaaS on every axis, so leaving `industry` blank paid +36.8% on
+    // the composite across 7 of 23 production snapshots. It is now the
+    // whole-market figure (Total Market without financials, 4,822 firms).
+    expect(INDUSTRIES.default.revenueMultiple).toBeLessThan(INDUSTRIES.SaaS.revenueMultiple);
+    expect(INDUSTRIES.default.ebitdaMultiple).toBeLessThan(INDUSTRIES.SaaS.ebitdaMultiple);
+    expect(INDUSTRIES.default.source).toMatch(/Total Market/);
+    // Below the median named sector, not above it.
+    const named = Object.entries(INDUSTRIES).filter(([k]) => k !== "default").map(([, v]) => v.revenueMultiple).sort((a, b) => a - b);
+    const median = named[Math.floor(named.length / 2)];
+    expect(INDUSTRIES.default.revenueMultiple).toBeLessThan(median);
   });
 });
 
-describe("DCF-multiple — leaving the industry blank pays", () => {
+describe("DCF-multiple — leaving the industry blank now costs", () => {
   const runIndustry = async (industry: string) => {
     const { computeValuation } = await import("../compute");
     const { buildDefaultParameters } = await import("../defaults");
@@ -869,25 +884,31 @@ describe("DCF-multiple — leaving the industry blank pays", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("is worth 36.8% on the composite, and 7 of 23 production snapshots do it", async () => {
+  it("costs 25.4% on the composite, where it used to pay 36.8%", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
-    // companies), which resolves to INDUSTRIES.default. The remaining 16 are
-    // "SaaS". So this is not hypothetical -- it is a sixth of the book.
+    // companies), which resolves to INDUSTRIES.default. The other 16 are "SaaS".
+    //
+    // Before the multiple re-sourcing `default` was 3.00x revenue / 9.00x EBITDA
+    // with a beta of 1.05 -- richer than SaaS on every axis -- so a blank field
+    // was worth +36.8%. It is now the whole-market figure, and the same omission
+    // costs -25.4%.
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(2_739_967);
-    expect(blank.weighted).toBe(3_746_905);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.368, 3);
+    expect(saas.weighted).toBe(3_615_309);
+    expect(blank.weighted).toBe(2_697_217);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.254, 3);
 
-    // It moves every method that reads the industry table, all upward.
-    expect(blank.multiple).toBeGreaterThan(saas.multiple * 2.3); // 3.00x vs 1.04x revenue
-    expect(blank.vc).toBeGreaterThan(saas.vc);                   // 9.00x vs 6.77x EBITDA
-    expect(blank.ltg).toBeGreaterThan(saas.ltg);                 // beta 1.05 vs 1.23
+    // dcf_multiple and vc both fall on the lower multiples.
+    expect(blank.multiple).toBeLessThan(saas.multiple * 0.5);
+    expect(blank.vc).toBeLessThan(saas.vc);
+    // dcf_ltg still RISES slightly, because `default` carries a lower beta (1.05
+    // vs 1.23) and so a lower discount rate. The beta column was not re-sourced.
+    expect(blank.ltg).toBeGreaterThan(saas.ltg);
   });
 
-  it("matches an unknown industry string to the same generous fallback", async () => {
+  it("matches an unknown industry string to the same fallback", async () => {
     // The matcher normalises case, underscores and spaces, so anything it does
     // not recognise -- "Software", "B2B SaaS", "Enterprise Software" -- lands on
     // `default` rather than on the nearest sector.
