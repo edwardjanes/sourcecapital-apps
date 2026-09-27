@@ -129,6 +129,10 @@ export function buildDefaultParameters(
     dcf_ltg: {
       terminal_growth_rate: LTG_GROWTH_RATE_DEFAULT,
       survival_rates: survivalRates,
+      // No excess returns in perpetuity. The spec calls assuming otherwise "a
+      // strong assumption" and notes competitive forces push returns on
+      // incremental capital toward the cost of capital over time.
+      terminal_return_on_new_capital: discountRate,
     },
 
     // DCF Multiple parameters

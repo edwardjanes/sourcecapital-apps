@@ -192,18 +192,57 @@ export const NORTHWIND_QUESTIONNAIRE = {
  *    442 country x industry combinations floor, and the narrowest spread is 4.55%
  *    (CH/Cleantech) against the 3pp floor. The guardrail stays as defence in
  *    depth; the cause is fixed.
+ *
+ * UPDATED A FOURTH TIME, same day, for TERMINAL-YEAR NORMALISATION. The terminal
+ * value now uses the spec's reinvestment form rather than growing the final
+ * forecast year's cash flow:
+ *
+ *   naive         TV = FCFE_5 x (1 + g) x survival / (r - g)
+ *   reinvestment  TV = NetIncome_6 x (1 - g/RONIC) x survival / (r - g)
+ *
+ * with RONIC defaulting to the discount rate (no excess returns in perpetuity).
+ * Both are computed and both are reported, because the spec asks for the naive
+ * form as a cross-check: "If the two approaches disagree, the Year 6
+ * reinvestment assumptions are inconsistent."
+ *
+ *   reinvestment rate g/RONIC   15.66%
+ *   naive TV                 3,768,675
+ *   reinvestment TV          3,923,104   +4.10%
+ *   dcf_ltg      1,886,798 -> 1,942,032   +2.93%
+ *   weighted     2,720,083 -> 2,739,967   +0.73%
+ *
+ * A SMALL MOVE ON THIS FIXTURE, AND THAT IS LUCK RATHER THAN DESIGN.
+ * AUDIT-04 predicted +18% by setting maintenance capex equal to D&A, which is
+ * itself the "perpetual growth with no reinvestment" error the spec names -- that
+ * prediction was wrong and the audit has been corrected. The real figure is
+ * +2.93%, because Northwind's year-5 FCFE (1,289,000) happens to sit at 81% of
+ * its net income (1,591,000) while a true steady state wants 84.3%.
+ *
+ * What the change is actually worth shows up when that coincidence does not
+ * hold. Varying ONLY year-5 line items, naive against reinvestment:
+ *
+ *   as supplied                       3,768,675   3,923,104     +4.1%
+ *   repays 250k of debt in year 5     3,183,931   3,923,104    +23.2%
+ *   receivables 1.23m -> 2.05m        1,371,225   3,923,104   +186.1%
+ *   capex 180k -> 900k                1,663,597   3,923,104   +135.8%
+ *   DRAWS 550k of new debt            5,376,722   3,923,104    -27.0%
+ *
+ * The naive terminal value swings by a factor of four on financing and
+ * working-capital decisions that happen to land in the final forecast year, and
+ * it can overstate as easily as understate. The reinvestment form does not move,
+ * because it keys on net income. That is the point of the change.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 2720082.7792354436,
-	lowBound: 2458954.832428841,
-	highBound: 2981210.726042046,
+	weightedValuation: 2739966.9107906944,
+	lowBound: 2476930.0873547876,
+	highBound: 3003003.734226601,
 	discountRate: 0.159623,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
 		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
 		{ method: 'vc', weight: 0.16, valuation: 1930301 },
-		{ method: 'dcf_ltg', weight: 0.36, valuation: 1886798 },
+		{ method: 'dcf_ltg', weight: 0.36, valuation: 1942032 },
 		{ method: 'dcf_multiple', weight: 0.36, valuation: 1710139 },
 		{ method: 'multiples', weight: 0, valuation: 0 },
 	],

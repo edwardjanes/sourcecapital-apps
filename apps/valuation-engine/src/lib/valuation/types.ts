@@ -97,8 +97,28 @@ export interface LtgTerminalValue {
   spreadUsed: number;
   /** True when the guardrail changed the arithmetic. Report it when it does. */
   floored: boolean;
-  /** (1 + g) / spread: terminal value per unit of terminal-year cash flow. */
+  /** (1 + g) / spread: the Gordon multiple, a property of the rate and growth alone. */
   impliedMultiple: number;
+
+  /** Which form produced `terminalValue`. */
+  basis: 'naive' | 'reinvestment';
+  /**
+   * FCFE_5 x (1 + g) / spread -- the naive form. Kept because the spec asks for
+   * it as a cross-check: "If the two approaches disagree, the Year 6
+   * reinvestment assumptions are inconsistent."
+   */
+  naiveTerminalValue: number;
+  /**
+   * NetIncome_6 x (1 - g/RONIC) / spread -- the reinvestment form the spec
+   * prescribes. Null when no terminal net income was supplied.
+   */
+  reinvestmentTerminalValue: number | null;
+  /** g / RONIC: the share of terminal earnings that must be reinvested to sustain g. */
+  reinvestmentRate: number | null;
+  /** The return on new capital the reinvestment rate was derived from. */
+  returnOnNewCapital: number | null;
+  /** reinvestment / naive - 1. The spec's own diagnostic; report it when large. */
+  reinvestmentDisagreement: number | null;
 }
 
 // --- Simple Multiples ---
@@ -254,6 +274,13 @@ export interface UpdatedValuationParameters extends Omit<ValuationParameters, 'm
   dcf_ltg: {
     terminal_growth_rate: number;
     survival_rates: number[];
+    /**
+     * Return on new capital in the terminal period, used to derive the
+     * reinvestment rate g/RONIC. Defaults to the discount rate (no excess
+     * returns in perpetuity). Optional so a caller supplying its own parameters
+     * falls back to that default rather than to the unnormalised form.
+     */
+    terminal_return_on_new_capital?: number;
   };
   dcf_multiple: {
     exit_multiple: number;

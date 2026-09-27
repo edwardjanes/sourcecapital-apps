@@ -390,7 +390,7 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     const gb = await run("United Kingdom", "SaaS");
     expect(gb.discountRate).toBeCloseTo(0.159623, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(2_720_083);
+    expect(gb.weighted).toBe(2_739_967);
   });
 });
 
@@ -465,28 +465,100 @@ describe("DCF-LTG — terminal value dominance and the steady state", () => {
     expect(normalisedFcfe6).toBeGreaterThan(enginesFcfe6);
   });
 
-  it("never tests g = RR x RONIC, the spec's consistency requirement", async () => {
-    // The spec devotes a section to it: "growth is not free", RR = g / RONIC,
-    // and the simple formula "remains valid only if FCFF already reflects the
-    // required reinvestment".
+  it("now tests g = RR x RONIC, which this test previously asserted was absent", async () => {
+    // This test used to assert the ABSENCE of any reinvestment check, and said:
+    // "If a reinvestment consistency check is ever added, this test fails and
+    // should be replaced with one that exercises it." It was, on 27 Sep 2026, so
+    // this is that replacement.
     //
-    // Asserted by reading the engine's own source, because the finding is an
-    // ABSENCE and there is no behaviour to assert against. If a reinvestment
-    // consistency check is ever added, this test fails and should be replaced
-    // with one that exercises it.
-    const { readFileSync } = await import("node:fs");
-    const src = ["compute.ts", "dcf.ts", "fcf.ts", "defaults.ts"]
-      .map((f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8"))
-      .join("\n");
-    expect(src).not.toMatch(/RONIC|ROIC|reinvestment[_ ]?rate/i);
+    // The spec: "growth is not free" -- g = RR x RONIC, so RR = g / RONIC, and
+    // the simple formula "remains valid only if FCFF already reflects the
+    // required reinvestment".
+    const { computeLtgTerminalValue } = await import("../dcf");
+    const r = 0.159623, g = 0.025;
+    const t = computeLtgTerminalValue(1_289_000, 0.384, r, g, 1_591_000);
 
-    // Terminal growth is a flat constant for every company, independent of what
-    // that company actually reinvests or earns on new capital.
-    const { LTG_GROWTH_RATE_DEFAULT, LTG_GROWTH_RATE_MIN, LTG_GROWTH_RATE_MAX } =
-      await import("../referenceData");
-    expect(LTG_GROWTH_RATE_DEFAULT).toBe(0.025);
-    expect(LTG_GROWTH_RATE_MIN).toBe(0.001);
-    expect(LTG_GROWTH_RATE_MAX).toBe(0.025);
+    expect(t.basis).toBe("reinvestment");
+    expect(t.returnOnNewCapital).toBeCloseTo(r, 12); // defaults to the discount rate
+    expect(t.reinvestmentRate).toBeCloseTo(g / r, 12);
+    expect(t.reinvestmentRate).toBeCloseTo(0.15662, 5);
+
+    // Both forms are reported, because the spec wants the naive one as a
+    // cross-check: "If the two approaches disagree, the Year 6 reinvestment
+    // assumptions are inconsistent."
+    expect(Math.round(t.naiveTerminalValue)).toBe(3_768_675);
+    expect(Math.round(t.reinvestmentTerminalValue!)).toBe(3_923_104);
+    expect(t.reinvestmentDisagreement).toBeCloseTo(0.041, 3);
+    expect(t.terminalValue).toBe(t.reinvestmentTerminalValue);
+  });
+
+  it("falls back to the naive form when no terminal net income is available", async () => {
+    const { computeLtgTerminalValue } = await import("../dcf");
+    const t = computeLtgTerminalValue(1_289_000, 0.384, 0.159623, 0.025);
+    expect(t.basis).toBe("naive");
+    expect(t.reinvestmentTerminalValue).toBeNull();
+    expect(t.reinvestmentRate).toBeNull();
+    expect(t.reinvestmentDisagreement).toBeNull();
+    expect(t.terminalValue).toBe(t.naiveTerminalValue);
+  });
+
+  it("cannot produce a reinvestment rate at or above 1, because of the spread floor", async () => {
+    // RR = g/RONIC, and RONIC defaults to the discount rate. MIN_LTG_SPREAD
+    // guarantees r >= g + 0.03, so RR < 1 always and terminal cash flow cannot
+    // be driven negative by reinvestment. The two fixes protect each other.
+    const { computeLtgTerminalValue } = await import("../dcf");
+    const { COUNTRIES, INDUSTRIES, resolveSizePremium } = await import("../referenceData");
+    const premium = resolveSizePremium(900_000).premium;
+    const all = Object.entries(COUNTRIES).flatMap(([, c]) =>
+      Object.entries(INDUSTRIES).map(([, i]) =>
+        computeLtgTerminalValue(
+          1_289_000, 0.384, c.riskFree10Y + i.beta * c.equityRiskPremium + premium, 0.025, 1_591_000
+        )
+      )
+    );
+    expect(all.length).toBe(442);
+    expect(all.every((t) => (t.reinvestmentRate as number) < 1)).toBe(true);
+    expect(all.every((t) => t.terminalValue > 0)).toBe(true);
+    expect(Math.max(...all.map((t) => t.reinvestmentRate as number))).toBeLessThan(0.56);
+  });
+
+  it("makes the terminal value independent of year-5 financing decisions", async () => {
+    // The whole point. The naive form carries whatever working-capital draw, debt
+    // movement and growth capex happened to land in the final forecast year and
+    // grows all of it in perpetuity; the reinvestment form keys on net income.
+    //
+    // Measured by varying ONLY year-5 line items on the Northwind fixture:
+    //   as supplied                    naive 3,768,675   reinvest 3,923,104    +4.1%
+    //   repays 250k of debt            naive 3,183,931   reinvest 3,923,104   +23.2%
+    //   receivables 1.23m -> 2.05m     naive 1,371,225   reinvest 3,923,104  +186.1%
+    //   capex 180k -> 900k             naive 1,663,597   reinvest 3,923,104  +135.8%
+    //   DRAWS 550k of new debt         naive 5,376,722   reinvest 3,923,104   -27.0%
+    //
+    // The naive terminal value swings by a factor of four and can overstate as
+    // easily as understate.
+    const { computeValuation } = await import("../compute");
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const at = async (mutate: Record<string, number>) => {
+      const fin = f.NORTHWIND_FINANCIALS.map((y) => (y.yearOffset === 5 ? { ...y, ...mutate } : { ...y }));
+      const d = buildDefaultParameters(f.NORTHWIND_COMPANY as never, fin as never, f.NORTHWIND_BALANCE_SHEET as never);
+      const r = await computeValuation(
+        f.NORTHWIND_COMPANY as never, fin as never,
+        { ...f.NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+      );
+      return r.ltgTerminalValue!;
+    };
+    const base = await at({});
+    const bigWc = await at({ receivables: 2_050_000 });
+    const drawsDebt = await at({ debt: 800_000 });
+
+    // Net income is untouched by all three, so the reinvestment value is identical.
+    expect(Math.round(bigWc.reinvestmentTerminalValue!)).toBe(Math.round(base.reinvestmentTerminalValue!));
+    expect(Math.round(drawsDebt.reinvestmentTerminalValue!)).toBe(Math.round(base.reinvestmentTerminalValue!));
+
+    // While the naive value swings hard in BOTH directions.
+    expect(bigWc.naiveTerminalValue / base.naiveTerminalValue).toBeLessThan(0.4);
+    expect(drawsDebt.naiveTerminalValue / base.naiveTerminalValue).toBeGreaterThan(1.4);
   });
 });
 
@@ -674,8 +746,8 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(r.ltgTerminalValue?.floored).toBe(false);
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
     // The locked baseline, which the guardrail itself never moved -- it changed
-    // only after the size premium landed, deliberately.
-    expect(Math.round(r.weightedValuation)).toBe(2_720_083);
+    // only when the size premium and the terminal normalisation landed.
+    expect(Math.round(r.weightedValuation)).toBe(2_739_967);
   });
 });
 
@@ -797,7 +869,7 @@ describe("DCF-multiple — leaving the industry blank pays", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("is worth 37.2% on the composite, and 7 of 23 production snapshots do it", async () => {
+  it("is worth 36.8% on the composite, and 7 of 23 production snapshots do it", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
     // companies), which resolves to INDUSTRIES.default. The remaining 16 are
@@ -805,9 +877,9 @@ describe("DCF-multiple — leaving the industry blank pays", () => {
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(2_720_083);
-    expect(blank.weighted).toBe(3_731_005);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.372, 3);
+    expect(saas.weighted).toBe(2_739_967);
+    expect(blank.weighted).toBe(3_746_905);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.368, 3);
 
     // It moves every method that reads the industry table, all upward.
     expect(blank.multiple).toBeGreaterThan(saas.multiple * 2.3); // 3.00x vs 1.04x revenue

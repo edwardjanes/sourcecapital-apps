@@ -128,12 +128,12 @@ describe('Northwind baseline (snapshot 6cdd8d1d)', () => {
     // below the one that does not. dcf_ltg takes terminal value from a
     // perpetuity growth rate; dcf_multiple and vc take the sector figures.
     expect(by('dcf_ltg').valuation).toBeGreaterThan(by('dcf_multiple').valuation);
-    // dcf_ltg USED to exceed vc as well, on a bare-CAPM 11.26% discount rate.
-    // The size premium (27 Sep 2026) took the rate to 15.96% and dcf_ltg with it,
-    // from 3,169,409 to 1,886,798, so it now sits just BELOW vc's 1,930,301.
-    // Recorded rather than relaxed: the ordering flipped for a reason.
-    expect(by('dcf_ltg').valuation).toBeLessThan(by('vc').valuation);
-    expect(by('vc').valuation / by('dcf_ltg').valuation).toBeCloseTo(1.023, 3);
+    // dcf_ltg vs vc has been close since the size premium took the rate to
+    // 15.96%: it fell to 1,886,798 against vc's 1,930,301, then the terminal
+    // normalisation returned it to 1,942,032, just above again. Asserted as a
+    // near-tie rather than an ordering, because the ordering is not meaningful
+    // at a 0.6% difference and would flip on any further change to either.
+    expect(by('dcf_ltg').valuation / by('vc').valuation).toBeCloseTo(1.006, 3);
 
     // z8mad3qup8: the band is a fixed proportion of the weighted value, not a
     // measure of how much the methods agree. Asserting the ratio documents that.

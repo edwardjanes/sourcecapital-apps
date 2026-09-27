@@ -110,7 +110,12 @@ describe("Size premium — effect on the valuation", () => {
     const d = buildDefaultParameters(
       NORTHWIND_COMPANY as never, NORTHWIND_FINANCIALS as never, NORTHWIND_BALANCE_SHEET as never
     );
-    if (rate !== undefined) d.dcf_shared.discount_rate = rate;
+    if (rate !== undefined) {
+      d.dcf_shared.discount_rate = rate;
+      // RONIC defaults to the discount rate, so an override must move both or the
+      // comparison would change two things at once.
+      d.dcf_ltg.terminal_return_on_new_capital = rate;
+    }
     const r = await computeValuation(
       NORTHWIND_COMPANY as never, NORTHWIND_FINANCIALS as never,
       { ...NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
@@ -125,9 +130,9 @@ describe("Size premium — effect on the valuation", () => {
     const before = await run(0.112623); // bare CAPM, as shipped until 27 Sep 2026
     const after = await run();
 
-    expect(after.ltg).toBe(1_886_798);
+    expect(after.ltg).toBe(1_942_032);
     expect(after.mult).toBe(1_710_139);
-    expect(after.w).toBe(2_720_083);
+    expect(after.w).toBe(2_739_967);
 
     // Correct blast radius.
     expect(after.vc).toBe(before.vc);
@@ -136,9 +141,9 @@ describe("Size premium — effect on the valuation", () => {
 
     // DCF-LTG moves more than DCF-multiple because the rate enters twice there:
     // once discounting, once in the Gordon denominator.
-    expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.4047, 3);
+    expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.3671, 3);
     expect(after.mult / before.mult - 1).toBeCloseTo(-0.1710, 3);
-    expect(after.w / before.w - 1).toBeCloseTo(-0.1779, 3);
+    expect(after.w / before.w - 1).toBeCloseTo(-0.1627, 3);
   });
 
   it("makes the cash-flow methods read LOWER, which widens the method gap", async () => {
@@ -151,7 +156,7 @@ describe("Size premium — effect on the valuation", () => {
     const after = await run();
     const gap = (x: Awaited<ReturnType<typeof run>>) => ((x.sc + x.ck) / 2) / ((x.ltg + x.mult) / 2);
     expect(gap(before)).toBeCloseTo(3.6, 1);
-    expect(gap(after)).toBeCloseTo(5.2, 1);
+    expect(gap(after)).toBeCloseTo(5.1, 1);
     expect(gap(after)).toBeGreaterThan(gap(before));
   });
 
@@ -161,8 +166,8 @@ describe("Size premium — effect on the valuation", () => {
     // a 61.6% survival haircut and a 25% illiquidity discount. Severe but
     // defensible. At decile 10z (22.46%) the same company lands at 1.27x, which
     // is what ruled that band out.
-    expect(after.ltg / 900_000).toBeCloseTo(2.10, 2);
+    expect(after.ltg / 900_000).toBeCloseTo(2.16, 2);
     const atTenZ = await run(0.112623 + 0.112);
-    expect(atTenZ.ltg / 900_000).toBeCloseTo(1.27, 2);
+    expect(atTenZ.ltg / 900_000).toBeCloseTo(1.34, 2);
   });
 });
