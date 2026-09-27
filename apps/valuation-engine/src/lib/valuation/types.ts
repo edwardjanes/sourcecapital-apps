@@ -24,13 +24,17 @@ export interface FcfeYear {
 
 // --- Scorecard ---
 export type ScorecardCriterionKey =
-  | 'team' | 'opportunity' | 'competitive_env' | 'product_ip' | 'partnerships' | 'funding_required';
+  | 'team' | 'opportunity' | 'competitive_env' | 'product_ip' | 'partnerships' | 'funding_required' | 'other';
 
 export interface ScorecardResult {
   criteria: { key: ScorecardCriterionKey; weight: number; score: number; contribution: number }[];
   sumWeightedScore: number;
   averagePreMoneyValuation: number;
   valuation: number;
+  /** The composite multiplier actually applied, after clamping to the method's 0.50-1.50 band. */
+  multiplier: number;
+  /** True when the derived ratings fell outside that band and were clamped. */
+  multiplierClamped: boolean;
 }
 
 // --- Checklist ---
@@ -58,6 +62,21 @@ export interface DcfResult {
   illiquidityAdjustedTerminalValue: number;
   nonOperatingCash: number;
   valuation: number;
+}
+
+/** Gordon-growth terminal value for DCF-LTG, with the spread guardrail's verdict. */
+export interface LtgTerminalValue {
+  terminalValue: number;
+  /** Terminal growth rate as supplied in the parameters, before any clamping. */
+  growthRateRequested: number;
+  /** The rate actually used. Lower than requested when the spread floor bound. */
+  growthRateUsed: number;
+  /** The denominator actually used -- at least MIN_LTG_SPREAD. */
+  spreadUsed: number;
+  /** True when the guardrail changed the arithmetic. Report it when it does. */
+  floored: boolean;
+  /** (1 + g) / spread: terminal value per unit of terminal-year cash flow. */
+  impliedMultiple: number;
 }
 
 // --- Simple Multiples ---
@@ -117,6 +136,8 @@ export interface ValuationReportOutput {
     dcfMultiple: DcfResult;
     multiples: SimpleMultiplesResult;
   };
+  /** Present only for DCF-LTG; carries whether the spread guardrail bound. */
+  ltgTerminalValue?: LtgTerminalValue;
   weightedValuation: number;
   lowBound: number;
   highBound: number;
@@ -175,6 +196,13 @@ export interface QuestionnaireAnswers {
   has_patents?: boolean;
   has_ip?: boolean;
   ip_protection_stage?: string;
+  /**
+   * Sustainably breakeven. The Checklist spec names the Operating Stage inputs
+   * as "the company's development stage AND current profitability" -- this is the
+   * second of those. Collected by the portal wizard since the method shipped and
+   * read by nothing until now.
+   */
+  sustainably_breakeven?: boolean;
   legal_risks?: boolean;
   // Merged from external sources (snapshot/route.ts enrichment)
   capital_needed?: number;
