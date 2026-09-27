@@ -51,7 +51,20 @@ export interface VcMethodResult {
   exitValue: number;
   discountFactor: number;
   discountedExitValue: number;
+  /** The new investment subtracted to reach pre-money. Zero until 27 Sep 2026. */
+  capitalRaised: number;
+  /** V_post - investment, UNCLAMPED. Negative means the raise does not clear. */
+  preMoneyValuation: number;
+  clearsHurdle: boolean;
+  /** max(0, preMoneyValuation). */
   valuation: number;
+}
+
+/** Whether a method produced a usable answer, and if not, why not. */
+export interface MethodApplicability {
+  applicable: boolean;
+  /** Plain-language reason for exclusion, for the report. Null when applicable. */
+  reason: string | null;
 }
 
 // --- DCF ---
@@ -178,6 +191,10 @@ export interface ValuationReportOutput {
     dcfMultiple: DcfResult;
     multiples: SimpleMultiplesResult;
   };
+  /** Stage weight belonging to excluded methods, redistributed across the rest. */
+  redistributedWeight?: number;
+  /** True when no method could be applied; the valuation is then 0. */
+  allMethodsInapplicable?: boolean;
   /** Present only for DCF-LTG; carries whether the spread guardrail bound. */
   ltgTerminalValue?: LtgTerminalValue;
   /** The CAPM-plus-size-premium build-up behind `discountRate`. */
@@ -188,7 +205,12 @@ export interface ValuationReportOutput {
   perMethod: {
     method: ValuationMethodKey;
     valuation: number;
+    /** The stage weight, before any redistribution. */
     weight: number;
+    /** The weight actually applied, after redistributing excluded methods. */
+    effectiveWeight: number;
+    applicable: boolean;
+    inapplicableReason: string | null;
     weightedContribution: number
   }[];
   discountRate: number;
@@ -265,6 +287,12 @@ export interface UpdatedValuationParameters extends Omit<ValuationParameters, 'm
     industry_multiple: number;
     required_roi: number;
     projection_years: number;
+    /**
+     * New investment to subtract for pre-money, overriding the founder's stated
+     * `capital_needed`. This is the live version of what `capitalRaisedOverride`
+     * was declared for and never read.
+     */
+    capital_raised_override?: number;
   };
   dcf_shared: {
     discount_rate: number;

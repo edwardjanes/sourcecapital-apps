@@ -267,17 +267,55 @@ export const NORTHWIND_QUESTIONNAIRE = {
  *    figure of 0.97x/4.75x, so a blank industry now costs -25.4% on the composite
  *    where it used to pay +36.8%. That closes ClickUp z8mad3qv1e as a side
  *    effect, and it affected 7 of 23 production snapshots.
+ *
+ * UPDATED A SIXTH TIME, same day, for the VC PRE-MONEY DECISION -- option (b) of
+ * AUDIT-03 divergence 1, chosen by Ed.
+ *
+ * `capitalRaised` had been hardcoded to 0 at the call site, so V_pre = V_post - 0
+ * and the engine reported POST-money value under a pre-money label for every
+ * company at 16% of the weight. It now takes the founder's own stated
+ * `capital_needed` (2,500,000 here), which was in the payload all along:
+ *
+ *   exit value              14,152,100
+ *   V_post                   1,953,111
+ *   capital raised           2,500,000
+ *   V_pre                     -546,889   <- does not clear
+ *
+ * At a 48.6% required return over five years, Northwind's projections do not
+ * support a 2.5m round by 546,889. Option (b) is that this is a statement about
+ * the ROUND, not a valuation of the company, so the method is EXCLUDED and its
+ * weight redistributed pro-rata rather than averaged in as a zero:
+ *
+ *   method        valuation    weight  effective
+ *   scorecard     8,679,750      6.0%      7.14%
+ *   checklist     9,925,875      6.0%      7.14%
+ *   vc                    0     16.0%      0.00%   excluded
+ *   dcf_ltg       1,942,032     36.0%     42.86%
+ *   dcf_multiple  4,131,506     36.0%     42.86%
+ *   multiples             0      0.0%      0.00%   excluded (no comparables)
+ *
+ *   weighted     3,615,309 -> 3,931,918   +8.75%
+ *
+ * It RAISES the composite, because the method being removed was the lowest of the
+ * five. Wiring capitalRaised alone would have LOWERED it by 9.3% -- that is
+ * option (a), and the difference between the two is entirely what a zero does
+ * inside a weighted average.
+ *
+ * The redistribution is general, not a VC special case: `multiples` is excluded
+ * here too for having no comparables. It carries 0% weight at every stage so
+ * nothing moves, but a caller overriding that weight no longer drags the
+ * composite toward zero. See computeWeightedValuation.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3615308.795314827,
-	lowBound: 3268239.1509646038,
-	highBound: 3962378.4396650507,
+	weightedValuation: 3931917.971513849,
+	lowBound: 3554453.8462485196,
+	highBound: 4309382.096779179,
 	discountRate: 0.159623,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
 		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
-		{ method: 'vc', weight: 0.16, valuation: 1953111 },
+		{ method: 'vc', weight: 0.16, valuation: 0 },
 		{ method: 'dcf_ltg', weight: 0.36, valuation: 1942032 },
 		{ method: 'dcf_multiple', weight: 0.36, valuation: 4131506 },
 		{ method: 'multiples', weight: 0, valuation: 0 },

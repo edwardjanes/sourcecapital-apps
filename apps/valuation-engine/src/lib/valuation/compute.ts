@@ -5,12 +5,13 @@ import {
   UpdatedValuationParameters,
   ValuationReportOutput,
   ValuationMethodKey,
-} from './types';
+  MethodApplicability,} from './types';
 import { deriveFcfeByYear } from './fcf';
 import { computeScorecard } from './scorecard';
 import { computeChecklist } from './checklist';
 import { computeVcMethod } from './vc';
 import { computeDcfShared, computeLtgTerminalValue } from './dcf';
+import { computeWeightedValuation } from './weights';
 import { computeSimpleMultiples, ComparableCompany } from './simpleMultiples';
 import { deriveScorecardCriteriaScores, deriveChecklistCriteriaScores } from './scoring';
 import { buildDefaultParameters } from './defaults';
@@ -57,13 +58,24 @@ export async function computeValuation(
     parameters.checklist.max_valuation
   );
 
-  // VC Method result
+  // VC Method result.
+  //
+  // `capitalRaised` was hardcoded to 0 until 27 Sep 2026, which meant
+  // V_pre = V_post - 0: the engine reported POST-money value under a pre-money
+  // label, for every company, at 16% of the weight. The input was in the payload
+  // the whole time. An explicit override wins, otherwise the founder's own stated
+  // round size; `capitalRaisedOverride` is the parameter that was declared for
+  // this and never read.
+  const capitalRaised =
+    parameters.vc_method.capital_raised_override ??
+    (typeof questionnaire?.capital_needed === 'number' ? questionnaire.capital_needed : 0);
+
   const vcResult = computeVcMethod(
     parameters.vc_method.terminal_metric_value,
     parameters.vc_method.industry_multiple,
     parameters.vc_method.required_roi,
     parameters.vc_method.projection_years,
-    0
+    capitalRaised
   );
 
   // DCF LTG result
@@ -125,35 +137,47 @@ export async function computeValuation(
     multiples: multiplesResult,
   };
 
-  const methodValuations = {
-    scorecard: scorecardResult.valuation,
-    checklist: checklistResult.valuation,
-    vc_method: vcResult.valuation,
-    dcf_ltg: dcfLtgResult.valuation,
-    dcf_multiple: dcfMultipleResult.valuation,
-    simple_multiples: multiplesResult.valuation,
-  };
+  // Which methods actually produced an answer. A method that cannot be applied
+  // surrenders its weight rather than contributing a zero -- see
+  // computeWeightedValuation for why.
+  const applicability: Partial<Record<ValuationMethodKey, MethodApplicability>> = {};
 
-  const perMethod: ValuationReportOutput['perMethod'] = (
-    Object.entries(parameters.method_weights) as [ValuationMethodKey, number][]
-  ).map(([method, weight]) => {
-    const valuationKey = method === 'multiples' ? 'simple_multiples' :
-                         method === 'dcf_ltg' ? 'dcf_ltg' :
-                         method === 'dcf_multiple' ? 'dcf_multiple' :
-                         method === 'vc' ? 'vc_method' :
-                         method as keyof typeof methodValuations;
-    const valuation = methodValuations[valuationKey] || 0;
-    const weightedContribution = valuation * weight;
-
-    return {
-      method,
-      valuation,
-      weight,
-      weightedContribution,
+  if (!vcResult.clearsHurdle) {
+    const shortfall = Math.abs(vcResult.preMoneyValuation);
+    applicability.vc = {
+      applicable: false,
+      reason:
+        `At a ${(parameters.vc_method.required_roi * 100).toFixed(1)}% required annual return over ` +
+        `${parameters.vc_method.projection_years} years, the discounted exit value of ` +
+        `${Math.round(vcResult.discountedExitValue).toLocaleString('en-GB')} does not cover the ` +
+        `${Math.round(vcResult.capitalRaised).toLocaleString('en-GB')} being raised -- a shortfall of ` +
+        `${Math.round(shortfall).toLocaleString('en-GB')}. This says the round does not clear at that ` +
+        `hurdle, not that the company is worth nothing, so the method is excluded rather than averaged in.`,
     };
-  });
+  }
 
-  const weightedValuation = perMethod.reduce((sum, m) => sum + m.weightedContribution, 0);
+  if (comparables.length === 0) {
+    applicability.multiples = {
+      applicable: false,
+      reason: 'No comparable companies were supplied, so there is no median multiple to apply.',
+    };
+  }
+
+  const weighted = computeWeightedValuation(
+    {
+      scorecard: scorecardResult.valuation,
+      checklist: checklistResult.valuation,
+      vc: vcResult.valuation,
+      dcf_ltg: dcfLtgResult.valuation,
+      dcf_multiple: dcfMultipleResult.valuation,
+      multiples: multiplesResult.valuation,
+    },
+    parameters.method_weights,
+    applicability
+  );
+
+  const perMethod: ValuationReportOutput['perMethod'] = weighted.perMethod;
+  const weightedValuation = weighted.weightedValuation;
 
   // Bounds (±9.6% as per Equidam methodology)
   const lowBound = weightedValuation * 0.904;
@@ -165,6 +189,8 @@ export async function computeValuation(
     lowBound,
     highBound,
     perMethod,
+    redistributedWeight: weighted.redistributedWeight,
+    allMethodsInapplicable: weighted.allMethodsInapplicable,
     ltgTerminalValue,
     discountRate,
     discountRateBuildUp: parameters.discount_rate_build_up,

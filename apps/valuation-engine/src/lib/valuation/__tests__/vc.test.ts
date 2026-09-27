@@ -349,16 +349,25 @@ describe("VC Method — resilience of the terminal metric", () => {
     expect(r.valuation).toBe(0);
   });
 
-  it("gives no way to tell that zero apart from a genuine zero", () => {
-    // Both of these return valuation 0 and the result object carries no flag,
-    // so a loss-making projection and a company with no forecast at all are
-    // indistinguishable downstream -- including to the report and the composite.
+  it("now distinguishes its zeros, which this test used to assert it could not", () => {
+    // This test previously asserted that a loss-making projection and a company
+    // with no forecast at all were INDISTINGUISHABLE downstream, because the
+    // result object carried no flag. Since the pre-money decision landed
+    // (27 Sep 2026) it carries three: preMoneyValuation unclamped, capitalRaised,
+    // and clearsHurdle. So the zero can now be explained rather than just
+    // reported.
     const lossMaking = computeVcMethod(-400_000, 6.77, 1.1147, 5, 0);
     const noForecast = computeVcMethod(0, 6.77, 1.1147, 5, 0);
-    expect(lossMaking.valuation).toBe(noForecast.valuation);
-    expect(Object.keys(lossMaking).sort()).toEqual(
-      ["discountFactor", "discountedExitValue", "exitValue", "valuation"]
-    );
+    expect(lossMaking.valuation).toBe(noForecast.valuation); // both still clamp to 0
+    // ...but they are no longer the same object.
+    expect(lossMaking.preMoneyValuation).toBeLessThan(0);
+    expect(noForecast.preMoneyValuation).toBe(0);
+    expect(lossMaking.clearsHurdle).toBe(false);
+
+    expect(Object.keys(lossMaking).sort()).toEqual([
+      "capitalRaised", "clearsHurdle", "discountFactor", "discountedExitValue",
+      "exitValue", "preMoneyValuation", "valuation",
+    ]);
   });
 
   it("is heavily suppressed anyway at an early-stage hurdle", () => {

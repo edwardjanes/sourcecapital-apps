@@ -132,13 +132,16 @@ describe('Northwind baseline (snapshot 6cdd8d1d)', () => {
     // 1.04x to 3.19x and dcf_multiple from 1,710,139 to 4,131,506, while dcf_ltg
     // uses neither multiple and did not move.
     expect(by('dcf_multiple').valuation).toBeGreaterThan(by('dcf_ltg').valuation);
-    // dcf_ltg and vc have been within about 1% of each other since the size
-    // premium took the rate to 15.96%, and the ordering has flipped twice --
-    // dcf_ltg below vc after the premium, above it after the terminal
-    // normalisation, and marginally below again after the multiple re-sourcing
-    // nudged vc up 1.18%. Asserted as a near-tie rather than an ordering,
-    // because at this margin the ordering carries no meaning.
-    expect(by('dcf_ltg').valuation / by('vc').valuation).toBeCloseTo(0.994, 2);
+    // vc no longer produces a comparable figure at all. Since the pre-money
+    // decision landed (option b, 27 Sep 2026) it is EXCLUDED for not clearing its
+    // hurdle -- V_pre is -546,889 -- so its reported valuation is 0 and its weight
+    // is redistributed. Asserted as exclusion rather than as a value.
+    expect(by('vc').valuation).toBe(0);
+    expect(by('vc').weight).toBeCloseTo(0.16, 10);
+    expect(by('vc').effectiveWeight).toBe(0);
+    expect(by('vc').applicable).toBe(false);
+    // And the weight went to the methods that could be applied.
+    expect(by('dcf_ltg').effectiveWeight).toBeCloseTo(0.36 / 0.84, 6);
 
     // z8mad3qup8: the band is a fixed proportion of the weighted value, not a
     // measure of how much the methods agree. Asserting the ratio documents that.
