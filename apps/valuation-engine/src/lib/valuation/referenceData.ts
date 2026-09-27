@@ -227,6 +227,104 @@ export const SURVIVAL_RATES_BY_COUNTRY: Partial<Record<keyof typeof COUNTRIES, n
   PL: [0.86, 0.70, 0.54, 0.47, 0.44, 0.4119],
 };
 
+/**
+ * Size premium added to the CAPM cost of equity, banded by last actual revenue.
+ *
+ * WHY THIS EXISTS. Before 27 Sep 2026 the discount rate was bare CAPM --
+ * `riskFree10Y + beta * equityRiskPremium` -- with no size or stage adjustment.
+ * That is a mature-listed-company cost of equity being applied to a startup, and
+ * the DCF-LTG method spec names it directly: "using a mature public-company WACC
+ * for a pre-revenue startup may understate risk". It also produced 31 of 442
+ * country x industry combinations with a rate below 5.5%, two of them below the
+ * 2.5% terminal growth rate -- see MIN_LTG_SPREAD, which was the guardrail for
+ * the symptom while this is the correction for the cause.
+ *
+ * WHAT IT COVERS, AND DELIBERATELY DOES NOT. Both DCF specs warn against
+ * counting the same risk twice ("Avoid loading failure risk into both a low
+ * survival probability and an arbitrary additional WACC premium"). The engine
+ * already models separately:
+ *
+ *   time value              -> riskFree10Y
+ *   systematic risk         -> beta x equityRiskPremium
+ *   FAILURE probability     -> SURVIVAL_RATES_BY_COUNTRY (GB: 38.4% by year 5)
+ *   ILLIQUIDITY             -> ILLIQUIDITY_DISCOUNT_DEFAULT (25%)
+ *
+ * So this premium covers SIZE ONLY. It is not a failure premium and not an
+ * illiquidity premium, and it must not be raised toward venture hurdle rates to
+ * compensate for either. That is why it lands a startup near 20-23% rather than
+ * the 40-70% of VC_REQUIRED_ROI: those figures are investor target returns that
+ * carry the whole portfolio failure load, which is the VC method's job and not
+ * this one. Both specs are explicit that the two are different quantities --
+ * "Using a 40% venture target return as WACC in a perpetual-growth DCF is
+ * generally not the same as estimating the company's market-participant cost of
+ * capital."
+ *
+ * SOURCING. The one real anchor is Kroll's Cost of Capital Navigator (the CRSP
+ * decile size premia, formerly Duff & Phelps):
+ *
+ *   decile 10  (smallest 10% of listed firms)   4.7%   Kroll, cited 2024
+ *
+ * Bands above it are a coarse read of deciles 6-9 rather than per-decile figures,
+ * marked `modelled` -- the same convention SPEC-benchmark-reference-table.md
+ * uses. Only the bottom band is `sourced`.
+ *
+ * WHY IT STOPS AT DECILE 10 AND NOT 10z. Kroll also publishes decile 10z (the
+ * smallest half of the smallest half), at 11.17% in 2022. A GBP 900k-revenue
+ * startup is far below even that, so extrapolating there looks defensible and is
+ * not, for two reasons measured on 27 Sep 2026:
+ *
+ *   1. The listed size effect is substantially an ILLIQUIDITY effect -- a
+ *      long-standing criticism of small-decile size premia. The engine already
+ *      charges illiquidity explicitly at 25%. Stacking 10z on top of that
+ *      charges the same risk twice, which is the exact trap both DCF specs warn
+ *      about.
+ *   2. The arithmetic bears it out. At 10z the rate reaches 22.46% and the
+ *      Gordon multiple collapses from 11.7x to 5.1x, valuing Northwind's
+ *      DCF-LTG at 1,140,821 -- 1.27x its last actual revenue, for a company
+ *      forecasting 8.2m by year 5, after a 61.6% survival haircut and a 25%
+ *      illiquidity discount have already been applied. At decile 10 the same
+ *      company lands at 1,886,798, or 2.1x revenue, which is severe but
+ *      defensible.
+ *
+ * So the bottom band is held flat at the sourced decile-10 figure. That means a
+ * pre-revenue company and a 4.9m-revenue company carry the same premium, which is
+ * a real limitation and preferred to inventing a gradient below the data. It is
+ * also less consequential than it looks: the stage weights give DCF-LTG 4% at
+ * `idea` against 36% at `expansion`, so the earliest companies lean on the
+ * qualitative methods anyway.
+ *
+ * CURRENCY. Bands are in the company's own currency, matching the engine's
+ * standing no-FX-conversion decision (31 Aug 2026). A EUR 1m company and a
+ * GBP 1m company land in the same band; at these thresholds that is inside the
+ * noise of the underlying data.
+ */
+export const SIZE_PREMIUM_BANDS: ReadonlyArray<{
+  /** Inclusive lower bound of last actual revenue, in the company's own currency. */
+  minRevenue: number;
+  premium: number;
+  basis: 'sourced' | 'modelled';
+  source: string;
+}> = [
+  { minRevenue: 500_000_000, premium: 0,     basis: 'modelled', source: 'At or above CRSP mid-cap; no size premium applied.' },
+  { minRevenue: 100_000_000, premium: 0.010, basis: 'modelled', source: 'Coarse read of CRSP deciles 6-8; interpolated toward zero.' },
+  { minRevenue:  25_000_000, premium: 0.020, basis: 'modelled', source: 'Coarse read of CRSP decile 9.' },
+  { minRevenue:   5_000_000, premium: 0.030, basis: 'modelled', source: 'Interpolated between decile 9 and decile 10.' },
+  { minRevenue:            0, premium: 0.047, basis: 'sourced',  source: 'Kroll Cost of Capital Navigator, CRSP decile 10 size premium, cited 2024. Held FLAT below this rather than extrapolated to decile 10z (11.2%) -- see the note on the illiquidity overlap.' },
+];
+
+/** Resolve the size premium for a company from its last actual revenue. */
+export function resolveSizePremium(lastYearRevenue: number): {
+  premium: number;
+  basis: 'sourced' | 'modelled';
+  source: string;
+  bandMinRevenue: number;
+} {
+  const revenue = Number.isFinite(lastYearRevenue) && lastYearRevenue > 0 ? lastYearRevenue : 0;
+  // Bands are ordered largest-first, so the first match is the right one.
+  const band = SIZE_PREMIUM_BANDS.find((b) => revenue >= b.minRevenue) ?? SIZE_PREMIUM_BANDS[SIZE_PREMIUM_BANDS.length - 1];
+  return { premium: band.premium, basis: band.basis, source: band.source, bandMinRevenue: band.minRevenue };
+}
+
 export const ILLIQUIDITY_DISCOUNT_DEFAULT = 0.25;
 export const LTG_GROWTH_RATE_DEFAULT = 0.025;
 export const LTG_GROWTH_RATE_MIN = 0.001;

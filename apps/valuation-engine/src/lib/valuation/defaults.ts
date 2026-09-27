@@ -13,6 +13,7 @@ import {
   LTG_GROWTH_RATE_DEFAULT,
   SURVIVAL_RATES,
   SURVIVAL_RATES_BY_COUNTRY,
+  resolveSizePremium,
   resolveCountryCode,
 } from './referenceData';
 import { deriveFcfeByYear } from './fcf';
@@ -73,8 +74,16 @@ export function buildDefaultParameters(
     fcfeByYear.find((f) => f.yearOffset === 5) || fcfeByYear[fcfeByYear.length - 1];
   const terminalEbitda = terminalFcfeYear?.ebitda ?? 0;
 
-  // Discount rate via CAPM
-  const discountRate = countryData.risk_free_rate + industryData.beta * countryData.equity_risk_premium;
+  // Discount rate: CAPM plus a size premium.
+  //
+  // The size premium was added 27 Sep 2026. Bare CAPM is a mature-listed-company
+  // cost of equity, and the DCF-LTG spec says applying one to a startup "may
+  // understate risk". It covers SIZE ONLY -- failure risk is already carried by
+  // the survival curve and illiquidity by ILLIQUIDITY_DISCOUNT_DEFAULT, and the
+  // specs warn against counting either twice. See SIZE_PREMIUM_BANDS.
+  const sizePremium = resolveSizePremium(lastYearRevenue);
+  const systematicRiskPremium = industryData.beta * countryData.equity_risk_premium;
+  const discountRate = countryData.risk_free_rate + systematicRiskPremium + sizePremium.premium;
 
   return {
     stage: profile.stage,
@@ -132,6 +141,19 @@ export function buildDefaultParameters(
     simple_multiples: {
       last_year_metric: lastYearRevenue,
       metric_type: 'revenue',
+    },
+
+    discount_rate_build_up: {
+      riskFreeRate: countryData.risk_free_rate,
+      beta: industryData.beta,
+      equityRiskPremium: countryData.equity_risk_premium,
+      systematicRiskPremium,
+      sizePremium: sizePremium.premium,
+      sizePremiumBasis: sizePremium.basis,
+      sizePremiumSource: sizePremium.source,
+      sizeBandMinRevenue: sizePremium.bandMinRevenue,
+      lastYearRevenue,
+      discountRate,
     },
 
     // Comparables (empty by default, user-filled)
