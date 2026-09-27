@@ -232,14 +232,37 @@ export const LTG_GROWTH_RATE_DEFAULT = 0.025;
 export const LTG_GROWTH_RATE_MIN = 0.001;
 export const LTG_GROWTH_RATE_MAX = 0.025;
 
+/**
+ * Payne's published Scorecard weights, all seven factors.
+ *
+ * `funding_required` was 0.10 and `other` was absent, having been folded into it.
+ * Both versions summed to 1.00 so nothing broke, but capital-needs sensitivity
+ * ran at double the method's intent and the "Other" bucket -- regulatory, legal,
+ * customer concentration, exceptional assets -- was unrepresented. Corrected
+ * against the spec in raise-hq-portal's claude/valuation methods/.
+ *
+ * `other` has no sub-trait rubric yet, so scoring.ts returns a neutral 0 delta
+ * for it. That is deliberate: it restores the correct weighting immediately
+ * without inventing a score, and the 5% is there to be filled when the factors
+ * behind it are actually collected.
+ */
 export const SCORECARD_CRITERIA_WEIGHTS = {
   team: 0.30,
   opportunity: 0.25,
-  competitive_env: 0.10,
   product_ip: 0.15,
+  competitive_env: 0.10,
   partnerships: 0.10,
-  funding_required: 0.10,
+  funding_required: 0.05,
+  other: 0.05,
 } as const;
+
+/**
+ * Payne's rating scale: 0.50 materially below the comparable average, 1.00
+ * average, 1.50 materially above. With weights summing to 1 the composite
+ * multiplier cannot legitimately land outside this band, so it is clamped.
+ */
+export const SCORECARD_MULTIPLIER_MIN = 0.5;
+export const SCORECARD_MULTIPLIER_MAX = 1.5;
 
 export const CHECKLIST_CRITERIA_WEIGHTS = {
   team: 0.30,

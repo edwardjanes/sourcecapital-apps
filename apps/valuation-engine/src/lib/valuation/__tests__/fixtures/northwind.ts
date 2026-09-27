@@ -100,19 +100,63 @@ export const NORTHWIND_QUESTIONNAIRE = {
 	strategic_partner_relationship_strength: '3',
 };
 
-/** The stored `outputs` of snapshot 6cdd8d1d, to the precision Postgres returned. */
+/**
+ * The expected output for these inputs.
+ *
+ * ORIGINALLY the stored `outputs` of snapshot 6cdd8d1d verbatim. UPDATED
+ * 27 Sep 2026 for the first three Scorecard audit fixes, which are the first
+ * deliberate model change since that snapshot was taken:
+ *
+ *   fix 0  absent sub-traits now contribute a neutral 50 instead of dropping
+ *          out of the average, so a factor is no longer decided by whichever
+ *          sub-trait happens to be supplied
+ *   fix 3  Payne's seventh factor restored; funding_required back to 5% from
+ *          the 10% it had absorbed
+ *   fix 4  composite multiplier clamped to the method's own 0.50-1.50 band
+ *
+ * Measured deltas, every one in the intended direction:
+ *
+ *   scorecard     8,954,875 -> 8,679,750   -3.07%
+ *   checklist    11,188,125 -> 10,843,875  -3.08%
+ *   vc            1,930,301 -> 1,930,301    0.00%
+ *   dcf_ltg       3,169,409 -> 3,169,409    0.00%
+ *   dcf_multiple  2,062,969 -> 2,062,969    0.00%
+ *   multiples             0 ->         0       —
+ *   weighted      3,401,084 -> 3,363,922   -1.09%
+ *
+ * Only the two qualitative methods moved, which is the correct blast radius:
+ * the fixes touch the sub-trait rubric and the Scorecard weights, and nothing
+ * else reads them. Checklist moved too because it shares rawOpportunitySize and
+ * rawStrategicPartnerships with Scorecard.
+ *
+ * The -3.07% reconciles exactly: opportunity -0.019 (recurring_revenue was
+ * unsupplied and now contributes 50), competitive_env -0.015 and partnerships
+ * -0.020 (competitors_count and partnerships_count likewise), less +0.015 from
+ * halving funding_required's weight on a -0.30 delta. Net -0.039 against a
+ * 1.2612 composite.
+ *
+ * fix 4 does not bind here: Northwind's composite is 1.2224 after the change,
+ * inside the band.
+ */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3401084.2249949267,
-	lowBound: 3074580.139395414,
-	highBound: 3727588.31059444,
+	weightedValuation: 3363921.7249949267,
+	lowBound: 3040985.239395414,
+	highBound: 3686858.21059444,
 	discountRate: 0.112623,
 	currency: 'GBP',
 	perMethod: [
-		{ method: 'scorecard', weight: 0.06, valuation: 8954875 },
-		{ method: 'checklist', weight: 0.06, valuation: 11188125 },
+		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
+		{ method: 'checklist', weight: 0.06, valuation: 10843875 },
 		{ method: 'vc', weight: 0.16, valuation: 1930301 },
 		{ method: 'dcf_ltg', weight: 0.36, valuation: 3169409 },
 		{ method: 'dcf_multiple', weight: 0.36, valuation: 2062969 },
 		{ method: 'multiples', weight: 0, valuation: 0 },
 	],
+};
+
+/** The as-shipped snapshot, kept so the audit's before/after stays checkable. */
+export const NORTHWIND_SNAPSHOT_AS_RUN = {
+	weightedValuation: 3401084.2249949267,
+	scorecard: 8954875,
+	checklist: 11188125,
 };

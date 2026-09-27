@@ -24,13 +24,17 @@ export interface FcfeYear {
 
 // --- Scorecard ---
 export type ScorecardCriterionKey =
-  | 'team' | 'opportunity' | 'competitive_env' | 'product_ip' | 'partnerships' | 'funding_required';
+  | 'team' | 'opportunity' | 'competitive_env' | 'product_ip' | 'partnerships' | 'funding_required' | 'other';
 
 export interface ScorecardResult {
   criteria: { key: ScorecardCriterionKey; weight: number; score: number; contribution: number }[];
   sumWeightedScore: number;
   averagePreMoneyValuation: number;
   valuation: number;
+  /** The composite multiplier actually applied, after clamping to the method's 0.50-1.50 band. */
+  multiplier: number;
+  /** True when the derived ratings fell outside that band and were clamped. */
+  multiplierClamped: boolean;
 }
 
 // --- Checklist ---

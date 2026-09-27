@@ -159,7 +159,7 @@ describe('Northwind sensitivity — sizing the model-pass decisions', () => {
     console.log('');
 
     // --- the claims the write-up rests on ---------------------------------
-    // Baseline still matches the locked snapshot.
+    // Baseline still matches the lock, which now reflects the Scorecard fixes.
     expect(baseline.weighted).toBe(Math.round(NORTHWIND_BASELINE.weightedValuation));
 
     // Raising the sector multiples raises exactly the two methods that use them
