@@ -78,6 +78,19 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
   // Prefer the value stored on the snapshot -- that is what was actually true
   // when the report was computed -- and only re-derive for snapshots taken
   // before the field existed, same precedence as currency above.
+  // Ticket 2: per-cell provenance, sent by the wizard on each financial row.
+  // Returns undefined for snapshots predating the field, which makes every
+  // marker and the legend below disappear rather than claim everything was
+  // entered by hand.
+  const sourcesFor = (engineKey: string): (string | undefined)[] | undefined => {
+    const rows = (inputs.financials || []) as { sources?: Record<string, string> }[];
+    if (!rows.some((r) => r.sources)) return undefined;
+    return rows.map((r) => r.sources?.[engineKey]);
+  };
+  const hasNotEntered = ((inputs.financials || []) as { sources?: Record<string, string> }[]).some(
+    (r) => r.sources && Object.values(r.sources).includes('not_entered')
+  );
+
   const dataQuality = getDataQualityDisclaimer(
     (report as { countryDataTier?: ReturnType<typeof getCountryDataTier> }).countryDataTier ||
       getCountryDataTier(snapshotCompany?.country)
@@ -716,6 +729,14 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
           <section id="pnl" className="rpt-page">
             <div className="rpt-kicker gold">Detail</div>
             <h2 className="rpt-title">Financial Projections – P&amp;L</h2>
+            {hasNotEntered && (
+              <div className="rpt-callout">
+                &dagger; Not entered. These figures were left blank and entered the valuation as
+                zero &mdash; no estimate was substituted. A blank cost line therefore raises
+                profitability, and a blank revenue line lowers it. Everything unmarked is as
+                supplied.
+              </div>
+            )}
             {inputs.financials && inputs.financials.length > 0 && (
               <div className="rpt-table-scroll">
                 <table className="rpt-table">
@@ -731,10 +752,10 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    <PnlRow label="Revenue" values={inputs.financials.map((f: any) => f.revenue)} currency={currency} />
-                    <PnlRow label="COGS" values={inputs.financials.map((f: any) => f.cogs)} currency={currency} />
-                    <PnlRow label="Salaries" values={inputs.financials.map((f: any) => f.salaries)} currency={currency} />
-                    <PnlRow label="OpEx" values={inputs.financials.map((f: any) => f.otherOpex)} currency={currency} />
+                    <PnlRow label="Revenue" values={inputs.financials.map((f: any) => f.revenue)} sources={sourcesFor('revenue')} currency={currency} />
+                    <PnlRow label="COGS" values={inputs.financials.map((f: any) => f.cogs)} sources={sourcesFor('cogs')} currency={currency} />
+                    <PnlRow label="Salaries" values={inputs.financials.map((f: any) => f.salaries)} sources={sourcesFor('salaries')} currency={currency} />
+                    <PnlRow label="OpEx" values={inputs.financials.map((f: any) => f.otherOpex)} sources={sourcesFor('otherOpex')} currency={currency} />
                     <PnlRow
                       label="EBITDA"
                       bold
@@ -1012,11 +1033,21 @@ function PnlRow({
   values,
   bold,
   currency,
+  sources,
 }: {
   label: string;
   values: number[];
   bold?: boolean;
   currency: string;
+  /**
+   * Ticket 2. Per-column provenance, aligned with `values`. Where a cell reads
+   * 'not_entered' the founder left it blank and it entered the valuation as
+   * zero -- which is not the same claim as "this costs nothing", and the report
+   * should not let the two look identical. Omitted for derived rows (EBITDA and
+   * below are computed, so they have no provenance of their own) and for
+   * snapshots taken before the field existed.
+   */
+  sources?: (string | undefined)[];
 }) {
   return (
     <tr className={bold ? 'row-total' : undefined}>
@@ -1024,6 +1055,7 @@ function PnlRow({
       {values.map((v, idx) => (
         <td key={idx} className="num">
           {formatCurrency(v || 0, currency)}
+          {sources?.[idx] === 'not_entered' ? <sup title="Not entered — treated as zero"> †</sup> : null}
         </td>
       ))}
     </tr>
