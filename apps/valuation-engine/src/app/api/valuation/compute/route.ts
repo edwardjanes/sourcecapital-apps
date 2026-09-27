@@ -314,6 +314,15 @@ export async function POST(request: NextRequest) {
       currency,
       country_data_tier: countryDataTier,
       data_quality: getDataQualityDisclaimer(countryDataTier),
+      // Ticket 2: which projection figures were the founder's own, per year.
+      // The caller sends `sources` on each financial row (valuationPayload.js)
+      // and it rides into the stored snapshot inputs; this echoes it back so a
+      // caller can render the distinction without re-reading the snapshot.
+      // Absent for any caller that does not send it, rather than guessed.
+      financial_sources: (financials || []).map((row) => ({
+        yearOffset: (row as { yearOffset?: number }).yearOffset,
+        sources: (row as { sources?: Record<string, string> }).sources ?? null,
+      })),
       reportUrl,
     });
   } catch (error) {
