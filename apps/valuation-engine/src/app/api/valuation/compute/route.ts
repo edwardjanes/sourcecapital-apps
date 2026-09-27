@@ -5,7 +5,8 @@ import { computeValuation } from '@/lib/valuation/compute';
 import { buildDefaultParameters } from '@/lib/valuation/defaults';
 import { validateWizardData, hasBlockingIssues } from '@/lib/valuation/validation';
 import { renderAndUploadReportPdf } from '@/lib/valuation/pdf';
-import { getCurrencyForCountry } from '@/lib/valuation/referenceData';
+import { getCurrencyForCountry, getCountryDataTier } from '@/lib/valuation/referenceData';
+import { getDataQualityDisclaimer } from '@/lib/valuation/dataQualityDisclaimer';
 import type { CompanyStage } from '@/lib/valuation/types';
 
 // Headless, service-key-protected compute + report route for n8n.
@@ -133,6 +134,11 @@ export async function POST(request: NextRequest) {
   // from the request body -- there is no client-supplied currency field to
   // trust or validate. See claude/track-11-currency-localization-scope.md.
   const currency = getCurrencyForCountry(company.country);
+  // Resolved server-side from the same company.country as the currency, for the
+  // same reason: there is no client-supplied field to trust. Ticket 1 of the
+  // 25 Sep brief -- the report has to caveat per tier, not with one generic
+  // "this is an estimate" line.
+  const countryDataTier = getCountryDataTier(company.country);
 
   try {
     // Upsert the canonical company row for this location -- create on the
@@ -250,7 +256,7 @@ export async function POST(request: NextRequest) {
     // computeValuation() itself stays currency-agnostic (see referenceData.ts's
     // CURRENCY_BY_COUNTRY comment) -- the label is attached here, once, to the
     // report object that gets persisted and returned.
-    const report = { ...reportRaw, currency };
+    const report = { ...reportRaw, currency, countryDataTier };
 
     // created_by is nullable as of 006_valuation_snapshots_created_by_nullable.sql --
     // there's no auth.users row for an n8n-triggered run, so it's left unset (null)
@@ -306,6 +312,8 @@ export async function POST(request: NextRequest) {
       lowBound: report.lowBound,
       highBound: report.highBound,
       currency,
+      country_data_tier: countryDataTier,
+      data_quality: getDataQualityDisclaimer(countryDataTier),
       reportUrl,
     });
   } catch (error) {

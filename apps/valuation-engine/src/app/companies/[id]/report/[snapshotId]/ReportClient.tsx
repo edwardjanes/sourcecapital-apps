@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { formatCurrency, formatPercent } from '@/lib/valuation/format';
-import { STAGE_DEFAULT_WEIGHTS } from '@/lib/valuation/referenceData';
+import { STAGE_DEFAULT_WEIGHTS, getCountryDataTier } from '@/lib/valuation/referenceData';
+import { getDataQualityDisclaimer } from '@/lib/valuation/dataQualityDisclaimer';
 import { buildDefaultParameters } from '@/lib/valuation/defaults';
 import { ReportChart } from '../ReportChart';
 import '../report.css';
@@ -68,6 +69,19 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
   const { outputs: report, inputs } = snapshot;
   const snapshotCompany = inputs.company || company;
   const [activeId, setActiveId] = useState<string>('cover');
+
+  // Printed in the running footer. Was hardcoded to "Vantage Metrics Ltd",
+  // which put one test company's name on every client's report.
+  const companyName = snapshotCompany?.name || 'Company';
+
+  // How well sourced this country's benchmarks are, for the per-tier caveat.
+  // Prefer the value stored on the snapshot -- that is what was actually true
+  // when the report was computed -- and only re-derive for snapshots taken
+  // before the field existed, same precedence as currency above.
+  const dataQuality = getDataQualityDisclaimer(
+    (report as { countryDataTier?: ReturnType<typeof getCountryDataTier> }).countryDataTier ||
+      getCountryDataTier(snapshotCompany?.country)
+  );
   const bookRef = useRef<HTMLDivElement>(null);
 
   // Currency this report's amounts are denominated in. Resolved server-side
@@ -160,6 +174,13 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
               </div>
               <div>
                 Prepared via <b>Source Capital Valuation Engine</b>
+              </div>
+              {/* The per-tier caveat has to be visible, not only in the
+                  appendix -- a reader who never reaches the last page should
+                  still know how well sourced the country benchmarks are. Full
+                  wording is in the Sources & Disclaimer section. */}
+              <div>
+                Country benchmarks: <b>{dataQuality.label}</b>. {dataQuality.summary}
               </div>
             </div>
           </section>
@@ -891,14 +912,42 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
             <div className="rpt-section-block">
               <div className="rpt-section-h">Data Sources</div>
               <div className="rpt-callout">
-                Country pre-money/max valuation baselines: Equidam Parameters Update, Feb 2026, derived from 30 months of real transaction data. Discount rate: CAPM (risk-free rate from Trading Economics, beta from Damodaran/NYU Stern, equity risk premium from Damodaran). Industry multiples: Equidam TRBC published data (July 2026) and Damodaran unlevered beta (Jan 2026).
+                Country pre-money and maximum valuation baselines: published market data &mdash;
+                PitchBook-NVCA, the British Business Bank and PitchBook Europe 2025, depending on the
+                country &mdash; with Germany additionally checked against a real sample valuation
+                report. Discount rate: CAPM, with the risk-free rate from Trading Economics, beta from
+                Damodaran/NYU Stern and the equity risk premium from Damodaran. Industry multiples:
+                Equidam&rsquo;s published TRBC data (July 2026) and Damodaran unlevered beta (Jan 2026).
+                Business survival curves: national statistics offices where published, otherwise a
+                documented interpolation or a generic default. This report does not use any
+                proprietary or internal third-party valuation dataset.
+              </div>
+            </div>
+
+            <div className="rpt-section-block">
+              <div className="rpt-section-h">
+                Confidence In The Country Benchmarks &mdash; {dataQuality.label}
+              </div>
+              <div className="rpt-callout">
+                {dataQuality.body}
+                {dataQuality.guidance ? (
+                  <>
+                    <br />
+                    <br />
+                    {dataQuality.guidance}
+                  </>
+                ) : null}
               </div>
             </div>
 
             <div className="rpt-section-block">
               <div className="rpt-section-h">Disclaimer</div>
               <div className="rpt-callout">
-                This valuation is illustrative and based on the data provided. It should not be considered financial advice. Consult with professional advisors before making investment decisions. All assumptions and data are subject to change.
+                This report is an estimate produced from the information provided and the benchmark
+                data described above. It is not financial advice, not an offer, and not a price: a
+                valuation is only settled between a company and its investors. Consult professional
+                advisors before making investment decisions. All assumptions and data are subject to
+                change.
               </div>
             </div>
 
@@ -909,7 +958,7 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
           </section>
 
           <div className="rpt-footer">
-            Vantage Metrics Ltd Valuation Report · Generated {new Date(report.generatedAt).toLocaleDateString()}
+            {companyName} Valuation Report · Generated {new Date(report.generatedAt).toLocaleDateString()}
           </div>
         </div>
       </div>

@@ -109,6 +109,37 @@ export function getCurrencyForCountry(country: string | undefined | null): strin
   return CURRENCY_BY_COUNTRY[resolveCountryCode(country)] ?? DEFAULT_CURRENCY;
 }
 
+/**
+ * How well sourced this country's benchmark data actually is.
+ *
+ * These three sets are not a new judgement -- they restate the data-quality
+ * note at the top of this file in a form code can branch on, so the report can
+ * caveat a valuation honestly instead of presenting all 25 countries as equally
+ * benchmarked. Keep them in step with that note: if a country graduates from
+ * illustrative to sourced, it moves here at the same time.
+ *
+ *   validated     DE only. Average and max are both real, checked against a
+ *                 genuine Equidam sample report.
+ *   partial       Average sourced from PitchBook-NVCA / British Business Bank /
+ *                 PitchBook-Europe 2025. The checklist max is a PROXY: DE's
+ *                 validated max/avg ratio (2.155x) applied to the sourced
+ *                 average, not an independently sourced figure.
+ *   illustrative  Everything else, including 'default'. No adequate public
+ *                 source was found. The file's own note says "do not treat as
+ *                 benchmarked" and the report must say so too.
+ */
+export type CountryDataTier = 'validated' | 'partial' | 'illustrative';
+
+const VALIDATED_COUNTRY_CODES = ['DE'] as const;
+const PARTIALLY_SOURCED_COUNTRY_CODES = ['US', 'GB', 'FR', 'NL', 'IE', 'SE', 'CH'] as const;
+
+export function getCountryDataTier(country: string | undefined | null): CountryDataTier {
+  const code = resolveCountryCode(country);
+  if ((VALIDATED_COUNTRY_CODES as readonly string[]).includes(code)) return 'validated';
+  if ((PARTIALLY_SOURCED_COUNTRY_CODES as readonly string[]).includes(code)) return 'partial';
+  return 'illustrative';
+}
+
 export const INDUSTRIES = {
   SaaS:        { beta: 1.23, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
   Fintech:     { beta: 0.78, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
