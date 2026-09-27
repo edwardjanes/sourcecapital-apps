@@ -390,7 +390,7 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     const gb = await run("United Kingdom", "SaaS");
     expect(gb.discountRate).toBeCloseTo(0.159623, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(3_615_309);
+    expect(gb.weighted).toBe(3_931_918);
   });
 });
 
@@ -747,7 +747,7 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
     // The locked baseline, which the guardrail itself never moved -- it changed
     // only when the size premium and the terminal normalisation landed.
-    expect(Math.round(r.weightedValuation)).toBe(3_615_309);
+    expect(Math.round(r.weightedValuation)).toBe(3_931_918);
   });
 });
 
@@ -884,7 +884,7 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("costs 25.4% on the composite, where it used to pay 36.8%", async () => {
+  it("costs 24.9% on the composite, where it used to pay 36.8%", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
     // companies), which resolves to INDUSTRIES.default. The other 16 are "SaaS".
@@ -896,13 +896,17 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(3_615_309);
-    expect(blank.weighted).toBe(2_697_217);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.254, 3);
+    expect(saas.weighted).toBe(3_931_918);
+    expect(blank.weighted).toBe(2_953_002);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.249, 3);
 
-    // dcf_multiple and vc both fall on the lower multiples.
+    // dcf_multiple falls on the lower multiple. vc reads 0 in both, because since
+    // the pre-money decision it is excluded for not clearing its hurdle either
+    // way -- and the blank fallback makes the shortfall WORSE, from -546,889 to
+    // -1,145,653, because a lower EBITDA multiple shrinks the exit value.
     expect(blank.multiple).toBeLessThan(saas.multiple * 0.5);
-    expect(blank.vc).toBeLessThan(saas.vc);
+    expect(blank.vc).toBe(0);
+    expect(saas.vc).toBe(0);
     // dcf_ltg still RISES slightly, because `default` carries a lower beta (1.05
     // vs 1.23) and so a lower discount rate. The beta column was not re-sourced.
     expect(blank.ltg).toBeGreaterThan(saas.ltg);

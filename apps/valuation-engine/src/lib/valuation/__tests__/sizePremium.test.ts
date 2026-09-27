@@ -132,9 +132,10 @@ describe("Size premium — effect on the valuation", () => {
 
     expect(after.ltg).toBe(1_942_032);
     expect(after.mult).toBe(4_131_506);
-    expect(after.w).toBe(3_615_309);
+    expect(after.w).toBe(3_931_918);
 
-    // Correct blast radius.
+    // Correct blast radius. (vc is 0 in both: since 27 Sep 2026 it is excluded
+    // entirely for not clearing its hurdle, and it never used this rate anyway.)
     expect(after.vc).toBe(before.vc);
     expect(after.sc).toBe(before.sc);
     expect(after.ck).toBe(before.ck);
@@ -143,7 +144,7 @@ describe("Size premium — effect on the valuation", () => {
     // once discounting, once in the Gordon denominator.
     expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.3671, 3);
     expect(after.mult / before.mult - 1).toBeCloseTo(-0.1804, 3);
-    expect(after.w / before.w - 1).toBeCloseTo(-0.1685, 3);
+    expect(after.w / before.w - 1).toBeCloseTo(-0.1816, 3);
   });
 
   it("makes the cash-flow methods read LOWER, which widens the method gap", async () => {
