@@ -165,6 +165,7 @@ export async function computeValuation(
     perMethod,
     ltgTerminalValue,
     discountRate,
+    discountRateBuildUp: parameters.discount_rate_build_up,
     fcfeByYear,
     generatedAt: new Date().toISOString(),
   };

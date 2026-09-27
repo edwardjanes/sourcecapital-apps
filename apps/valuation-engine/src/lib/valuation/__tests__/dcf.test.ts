@@ -326,51 +326,71 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     };
   };
 
-  it("no longer returns a silent zero when the CAPM rate falls below g", async () => {
-    // WAS THE BUG, fixed 27 Sep 2026 by MIN_LTG_SPREAD. The spec's "Required
-    // condition" is WACC > g and its Common Errors list "Setting g equal to or
-    // above WACC". LTG_GROWTH_RATE_DEFAULT is a flat 0.025 while the discount
-    // rate is CAPM per country x industry, and two of the 442 combinations land
-    // below it. Swiss Cleantech is r = 2.346% against a requested g of 2.5%:
-    // the denominator went negative, the terminal value with it, and
+  it("protected a bare-CAPM rate that fell below g", async () => {
+    // WAS THE BUG. The spec's "Required condition" is WACC > g and its Common
+    // Errors list "Setting g equal to or above WACC". Under bare CAPM, Swiss
+    // Cleantech resolved to r = 2.346% against a requested g of 2.5%: the
+    // denominator went negative, the terminal value with it, and
     // Math.max(0, ...) handed back a clean zero at 36% of the weight.
+    //
+    // Asserted at the unit rather than through the pipeline, because since the
+    // size premium landed no real company reaches a rate that low -- which is
+    // the point of the premium. This is the guardrail still doing its job on the
+    // input that used to occur.
+    const { computeLtgTerminalValue } = await import("../dcf");
+    const { COUNTRIES, INDUSTRIES } = await import("../referenceData");
+    // Read from the tables rather than retyped, so the figures cannot drift.
+    const bareCapmCleantech =
+      COUNTRIES.CH.riskFree10Y + INDUSTRIES.Cleantech.beta * COUNTRIES.CH.equityRiskPremium;
+    expect(bareCapmCleantech).toBeCloseTo(0.023458, 6);
+    expect(bareCapmCleantech).toBeLessThan(0.025);
+    const t = computeLtgTerminalValue(1_289_000, 0.384, bareCapmCleantech, 0.025);
+    expect(t.floored).toBe(true);
+    expect(t.terminalValue).toBeGreaterThan(0);
+    expect(t.growthRateUsed).toBeGreaterThan(0);
+  });
+
+  it("no longer needs to fire for any real company, which is the premium's job", async () => {
+    // With the size premium the same Swiss Cleantech company resolves to 7.05%,
+    // a 4.55% spread, and the guardrail does not bind. Across all 442 country x
+    // industry combinations at a sub-5m revenue band, ZERO now floor -- asserted
+    // in full below. MIN_LTG_SPREAD is defence in depth; the cause is fixed.
     const ch = await run("Switzerland", "Cleantech");
-    expect(ch.discountRate).toBeLessThan(0.025); // the rate really is below g
-    expect(ch.ltg).toBeGreaterThan(0);           // and no longer collapses
-    expect(ch.floored).toBe(true);               // and says that it was capped
+    expect(ch.discountRate).toBeCloseTo(0.070458, 6);
+    expect(ch.floored).toBe(false);
+    expect(ch.ltg).toBeGreaterThan(0);
+    // And no longer 126m either, at the other end.
+    const pt = await run("Switzerland", "PropTech");
+    expect(pt.floored).toBe(false);
+    expect(pt.ltg).toBeLessThan(10_000_000);
   });
 
-  it("no longer produces a 290x terminal multiple on a narrow spread", async () => {
-    // WAS THE BUG, and worse than the zero because this one looked like an
-    // answer: Swiss PropTech is r = 2.853%, a spread of 0.353% against the
-    // requested g, so the terminal multiple was 1.025 / 0.00353 = 290x year-5
-    // cash flow and dcf_ltg came out at GBP 126,182,407 for a company with GBP
-    // 900k of revenue, giving a composite of GBP 49,727,077 against the UK
-    // SaaS 3,308,842 on identical cash flows. The spec: "As the spread narrows,
-    // terminal value becomes extraordinarily sensitive."
-    const ch = await run("Switzerland", "PropTech");
-    expect(ch.discountRate - 0.025).toBeCloseTo(0.00353, 5); // the raw spread
-    expect(ch.floored).toBe(true);
-    expect(ch.impliedMultiple).toBeLessThan(35);
-    expect(ch.ltg).toBeLessThan(20_000_000);
-
-    // Still high for a GBP 900k-revenue company, and deliberately so: the
-    // guardrail caps the damage, it does not fix the cause. A 2.85% cost of
-    // equity for a startup is wrong whatever the spread -- the spec says
-    // "using a mature public-company WACC for a pre-revenue startup may
-    // understate risk" -- and a stage/size premium is the real fix
-    // (ClickUp z8mad3qv19). The ratio to the UK case is now ~3x, not ~15x.
-    const gb = await run("United Kingdom", "SaaS");
-    expect(gb.ltg).toBe(3_169_409);
-    expect(ch.weighted / gb.weighted).toBeLessThan(4);
-    expect(ch.weighted / gb.weighted).toBeGreaterThan(2);
+  it("no combination floors once the size premium is applied", async () => {
+    const { computeLtgTerminalValue, MIN_LTG_SPREAD } = await import("../dcf");
+    const { COUNTRIES, INDUSTRIES, LTG_GROWTH_RATE_DEFAULT, resolveSizePremium } =
+      await import("../referenceData");
+    const premium = resolveSizePremium(900_000).premium; // Northwind's band
+    const all = Object.entries(COUNTRIES).flatMap(([, c]) =>
+      Object.entries(INDUSTRIES).map(([, i]) =>
+        computeLtgTerminalValue(
+          1_289_000, 0.384,
+          c.riskFree10Y + i.beta * c.equityRiskPremium + premium,
+          LTG_GROWTH_RATE_DEFAULT
+        )
+      )
+    );
+    expect(all.length).toBe(442);
+    expect(all.filter((t) => t.floored).length).toBe(0);
+    // Narrowest spread is CH/Cleantech at 4.55%, comfortably over the 3pp floor.
+    expect(Math.min(...all.map((t) => t.spreadUsed))).toBeGreaterThan(MIN_LTG_SPREAD);
+    expect(Math.min(...all.map((t) => t.spreadUsed))).toBeCloseTo(0.045458, 5);
   });
 
-  it("carries the UK SaaS baseline unchanged, so the above is not a harness artefact", async () => {
+  it("carries the UK SaaS baseline, so the above is not a harness artefact", async () => {
     const gb = await run("United Kingdom", "SaaS");
-    expect(gb.discountRate).toBeCloseTo(0.112623, 6);
+    expect(gb.discountRate).toBeCloseTo(0.159623, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(3_308_842);
+    expect(gb.weighted).toBe(2_720_083);
   });
 });
 
@@ -653,9 +673,9 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     );
     expect(r.ltgTerminalValue?.floored).toBe(false);
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
-    // The locked baseline is untouched by the guardrail -- the assertion that
-    // matters most, since the fix would be worthless if it moved a good case.
-    expect(Math.round(r.weightedValuation)).toBe(3_308_842);
+    // The locked baseline, which the guardrail itself never moved -- it changed
+    // only after the size premium landed, deliberately.
+    expect(Math.round(r.weightedValuation)).toBe(2_720_083);
   });
 });
 
@@ -777,7 +797,7 @@ describe("DCF-multiple — leaving the industry blank pays", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("is worth 39.3% on the composite, and 7 of 23 production snapshots do it", async () => {
+  it("is worth 37.2% on the composite, and 7 of 23 production snapshots do it", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
     // companies), which resolves to INDUSTRIES.default. The remaining 16 are
@@ -785,12 +805,12 @@ describe("DCF-multiple — leaving the industry blank pays", () => {
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(3_308_842);
-    expect(blank.weighted).toBe(4_610_772);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.393, 3);
+    expect(saas.weighted).toBe(2_720_083);
+    expect(blank.weighted).toBe(3_731_005);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.372, 3);
 
     // It moves every method that reads the industry table, all upward.
-    expect(blank.multiple).toBeGreaterThan(saas.multiple * 2.4); // 3.00x vs 1.04x revenue
+    expect(blank.multiple).toBeGreaterThan(saas.multiple * 2.3); // 3.00x vs 1.04x revenue
     expect(blank.vc).toBeGreaterThan(saas.vc);                   // 9.00x vs 6.77x EBITDA
     expect(blank.ltg).toBeGreaterThan(saas.ltg);                 // beta 1.05 vs 1.23
   });

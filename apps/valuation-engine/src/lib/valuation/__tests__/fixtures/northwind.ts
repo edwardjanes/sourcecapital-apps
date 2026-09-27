@@ -150,27 +150,61 @@ export const NORTHWIND_QUESTIONNAIRE = {
  *
  *   operating_stage score  1.0 -> 0.7   (revenue_generating 1.0 averaged with not-breakeven 0.4)
  *   checklist    10,843,875 -> 9,925,875   -8.47%
- *   scorecard     8,679,750 -> 8,679,750    0.00%  (operating_stage is Checklist-only)
  *   weighted      3,363,922 -> 3,308,842   -1.64%
  *
- * Reconciles exactly: the achievement factor drops 0.20 x 0.3 = 0.06, which
- * against the GBP 15,300,000 ceiling is -918,000; at Checklist's 6% weight at
- * expansion stage that is -55,080 on the composite. At `development` stage,
- * where Checklist carries 30% and 16 of 19 companies sit, the same change would
- * be five times larger.
+ * UPDATED A THIRD TIME, same day, for the DISCOUNT-RATE SIZE PREMIUM. This is the
+ * largest deliberate move of the model pass so far, and the only one that touches
+ * both DCFs at once.
+ *
+ * The rate was bare CAPM -- `riskFree10Y + beta * equityRiskPremium` -- with no
+ * size or stage adjustment, which is a mature-listed-company cost of equity
+ * applied to a startup. It now adds a size premium from SIZE_PREMIUM_BANDS,
+ * keyed on last actual revenue:
+ *
+ *   5.10% riskFree + 6.16% systematic (beta 1.23) + 4.70% size = 15.962%
+ *                                                    (was 11.262%)
+ *
+ * Measured deltas:
+ *
+ *   dcf_ltg       3,169,409 -> 1,886,798  -40.47%
+ *   dcf_multiple  2,062,969 -> 1,710,139  -17.10%
+ *   vc            1,930,301 -> 1,930,301    0.00%  (uses VC_REQUIRED_ROI, not this rate)
+ *   scorecard     8,679,750 -> 8,679,750    0.00%
+ *   checklist     9,925,875 -> 9,925,875    0.00%
+ *   weighted      3,308,842 -> 2,720,083  -17.79%
+ *
+ * Correct blast radius: only the two methods that discount cash flows. DCF-LTG
+ * moves more than DCF-multiple because the rate enters twice there -- once
+ * discounting, once in the Gordon denominator, where the multiple falls from
+ * 11.7x to 7.6x.
+ *
+ * TWO THINGS WORTH RECORDING, because both contradict earlier write-ups:
+ *
+ * 1. This is the first finding of the model pass that made the CASH-FLOW methods
+ *    read too HIGH. AUDIT-04/05/06 all claimed every cash-flow method read too
+ *    low (unnormalised terminal year, understated revenue multiples) and that the
+ *    errors were partly cancelling against the qualitative methods' too-high
+ *    benchmark. That was wrong about this one: the rate was too low, so fixing it
+ *    pushes the DCFs DOWN and WIDENS the method-family gap, from 3.6x to 5.2x
+ *    (qualitative mean / cash-flow mean).
+ *
+ * 2. MIN_LTG_SPREAD is no longer load-bearing. With the premium applied, 0 of the
+ *    442 country x industry combinations floor, and the narrowest spread is 4.55%
+ *    (CH/Cleantech) against the 3pp floor. The guardrail stays as defence in
+ *    depth; the cause is fixed.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3308841.7249949267,
-	lowBound: 2991192.9193954137,
-	highBound: 3626490.53059444,
-	discountRate: 0.112623,
+	weightedValuation: 2720082.7792354436,
+	lowBound: 2458954.832428841,
+	highBound: 2981210.726042046,
+	discountRate: 0.159623,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
 		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
 		{ method: 'vc', weight: 0.16, valuation: 1930301 },
-		{ method: 'dcf_ltg', weight: 0.36, valuation: 3169409 },
-		{ method: 'dcf_multiple', weight: 0.36, valuation: 2062969 },
+		{ method: 'dcf_ltg', weight: 0.36, valuation: 1886798 },
+		{ method: 'dcf_multiple', weight: 0.36, valuation: 1710139 },
 		{ method: 'multiples', weight: 0, valuation: 0 },
 	],
 };

@@ -64,6 +64,28 @@ export interface DcfResult {
   valuation: number;
 }
 
+/** How the discount rate was built, so the report can show it rather than assert it. */
+export interface DiscountRateBuildUp {
+  /** COUNTRIES[x].riskFree10Y */
+  riskFreeRate: number;
+  /** INDUSTRIES[x].beta */
+  beta: number;
+  /** COUNTRIES[x].equityRiskPremium */
+  equityRiskPremium: number;
+  /** beta x equityRiskPremium */
+  systematicRiskPremium: number;
+  /** Size premium from SIZE_PREMIUM_BANDS, keyed on last actual revenue. */
+  sizePremium: number;
+  /** Which band matched, and how well sourced it is. */
+  sizePremiumBasis: 'sourced' | 'modelled';
+  sizePremiumSource: string;
+  sizeBandMinRevenue: number;
+  /** The revenue the band was chosen on. */
+  lastYearRevenue: number;
+  /** riskFreeRate + systematicRiskPremium + sizePremium */
+  discountRate: number;
+}
+
 /** Gordon-growth terminal value for DCF-LTG, with the spread guardrail's verdict. */
 export interface LtgTerminalValue {
   terminalValue: number;
@@ -138,6 +160,8 @@ export interface ValuationReportOutput {
   };
   /** Present only for DCF-LTG; carries whether the spread guardrail bound. */
   ltgTerminalValue?: LtgTerminalValue;
+  /** The CAPM-plus-size-premium build-up behind `discountRate`. */
+  discountRateBuildUp?: DiscountRateBuildUp;
   weightedValuation: number;
   lowBound: number;
   highBound: number;
@@ -240,4 +264,11 @@ export interface UpdatedValuationParameters extends Omit<ValuationParameters, 'm
     metric_type: MetricType;
   };
   comparables: Array<{ name: string; metric: number; multiple: number; metricType: MetricType }>;
+  /**
+   * How `dcf_shared.discount_rate` was arrived at. Set by buildDefaultParameters
+   * and passed through to the output. Optional because a caller may supply its
+   * own parameters wholesale, in which case there is no build-up to report and
+   * the rate should be taken at face value.
+   */
+  discount_rate_build_up?: DiscountRateBuildUp;
 }
