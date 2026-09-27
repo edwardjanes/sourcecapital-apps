@@ -658,3 +658,206 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(Math.round(r.weightedValuation)).toBe(3_308_842);
   });
 });
+
+// ---------------------------------------------------------------------------
+// AUDIT-05 — DCF with Exit Multiple. Spec: "DCF with Exit Multiple Valuation
+// Method.md" in raise-hq-portal's claude/valuation methods/.
+//
+// Shares the 36% weight at expansion with DCF-LTG, the same FCFE stream, the
+// same survival curve and the same illiquidity discount. Only the terminal
+// value differs: year-5 revenue x an industry revenue multiple.
+// ---------------------------------------------------------------------------
+
+describe("DCF-multiple — the claims mismatch", () => {
+  it("pairs equity cash flows with an enterprise multiple, which the spec names as an error", async () => {
+    // The spec is explicit: "An equity DCF may instead discount FCFE at the cost
+    // of equity and use an EQUITY terminal multiple, such as P/E. Combining FCFF
+    // with a P/E multiple, or FCFE with EV/EBITDA, mismatches the claims
+    // represented by the cash flows and valuation multiple." Its Common Errors
+    // list "Mixing EV multiples with equity metrics" and "Failing to subtract
+    // debt-like claims".
+    //
+    // We discount FCFE at a cost of equity -- correct, and the same pairing that
+    // makes DCF-LTG consistent -- and then add a terminal value built from an
+    // EV/Revenue multiple, with no enterprise-to-equity bridge. So the SAME
+    // choice that is right in DCF-LTG is wrong here, because there the terminal
+    // value comes off the FCFE stream itself and here it does not.
+    const { INDUSTRIES } = await import("../referenceData");
+    // revenueMultiple and ebitdaMultiple are both enterprise multiples; there is
+    // no equity multiple (P/E, price-to-book) anywhere in the reference table.
+    expect(Object.keys(INDUSTRIES.SaaS).sort()).toEqual(["beta", "ebitdaMultiple", "revenueMultiple"]);
+  });
+
+  it("subtracts no debt, so Northwind's year-5 borrowings are never bridged", async () => {
+    const f = await import("./fixtures/northwind");
+    const year5 = f.NORTHWIND_FINANCIALS.find((y) => y.yearOffset === 5);
+    expect(year5?.debt).toBe(250_000);
+    // Nothing in the DCF-multiple path reads it. The only balance-sheet item
+    // that reaches the valuation is non_operating_cash, added at the end.
+    expect(f.NORTHWIND_BALANCE_SHEET.non_operating_cash).toBe(60_000);
+    expect(f.NORTHWIND_BALANCE_SHEET.long_term_liabilities).toBe(150_000);
+  });
+});
+
+describe("DCF-multiple — the reference table disagrees with itself", () => {
+  // The spec: EV/Revenue = EV/EBITDA x EBITDA margin, and "This is why revenue
+  // multiple selection cannot be separated from mature-margin assumptions." Its
+  // Common Errors include "Using EV/Revenue without testing mature margins".
+  const MARGIN = 2_066_000 / 8_200_000; // Northwind's year-5 EBITDA margin, 25.2%
+
+  it("carries revenue multiples inconsistent with its own EBITDA multiples", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // At a 25.2% terminal margin, SaaS's 6.77x EBITDA implies 1.71x revenue.
+    // The table says 1.04x -- a 1.64x disagreement between two columns of the
+    // same row, used by two different methods on the same company.
+    const implied = INDUSTRIES.SaaS.ebitdaMultiple * MARGIN;
+    expect(implied).toBeCloseTo(1.706, 3);
+    expect(INDUSTRIES.SaaS.revenueMultiple).toBe(1.04);
+    expect(implied / INDUSTRIES.SaaS.revenueMultiple).toBeCloseTo(1.64, 2);
+
+    // The table's 1.04x would be consistent with a 15.4% mature margin, which is
+    // low for SaaS at scale -- so the revenue multiple is the understated one.
+    expect(INDUSTRIES.SaaS.revenueMultiple / INDUSTRIES.SaaS.ebitdaMultiple).toBeCloseTo(0.154, 3);
+  });
+
+  it("does not even disagree in a consistent direction", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // If the two columns embedded one shared margin assumption, the ratio would
+    // be constant across sectors. It is not: SaaS and Marketplace understate the
+    // revenue multiple relative to their own EBITDA multiple, while Cleantech,
+    // PropTech and default overstate it. That is noise, not a methodology.
+    const ratio = (k: keyof typeof INDUSTRIES) =>
+      (INDUSTRIES[k].ebitdaMultiple * MARGIN) / INDUSTRIES[k].revenueMultiple;
+    expect(ratio("SaaS")).toBeGreaterThan(1.5);
+    expect(ratio("Marketplace")).toBeGreaterThan(1.5);
+    expect(ratio("Cleantech")).toBeLessThan(0.7);
+    expect(ratio("PropTech")).toBeLessThan(0.7);
+    expect(ratio("default")).toBeLessThan(0.8);
+  });
+
+  it("gives four different sectors one identical pair of multiples", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // Common Errors: "Treating an industry average as universally applicable."
+    // SaaS, Fintech, AI/ML and MobileApp share 6.77x and 1.04x exactly, which is
+    // the tell that these are not sector-sourced figures. There is no provenance
+    // comment anywhere on INDUSTRIES.
+    for (const k of ["Fintech", "AI_ML", "MobileApp"] as const) {
+      expect(INDUSTRIES[k].ebitdaMultiple).toBe(INDUSTRIES.SaaS.ebitdaMultiple);
+      expect(INDUSTRIES[k].revenueMultiple).toBe(INDUSTRIES.SaaS.revenueMultiple);
+    }
+  });
+
+  it("makes the fallback more generous than most named sectors", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // `default` is what an unmatched industry string resolves to, and it is
+    // richer than SaaS on every axis: 3.00x vs 1.04x revenue, 9.00x vs 6.77x
+    // EBITDA, and a LOWER beta (1.05 vs 1.23), which also lowers the discount
+    // rate. A fallback should not beat the thing it is standing in for.
+    expect(INDUSTRIES.default.revenueMultiple).toBeGreaterThan(INDUSTRIES.SaaS.revenueMultiple * 2.8);
+    expect(INDUSTRIES.default.ebitdaMultiple).toBeGreaterThan(INDUSTRIES.SaaS.ebitdaMultiple);
+    expect(INDUSTRIES.default.beta).toBeLessThan(INDUSTRIES.SaaS.beta);
+  });
+});
+
+describe("DCF-multiple — leaving the industry blank pays", () => {
+  const runIndustry = async (industry: string) => {
+    const { computeValuation } = await import("../compute");
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const company = { ...f.NORTHWIND_COMPANY, industry };
+    const d = buildDefaultParameters(
+      company as never, f.NORTHWIND_FINANCIALS as never, f.NORTHWIND_BALANCE_SHEET as never
+    );
+    const r = await computeValuation(
+      company as never, f.NORTHWIND_FINANCIALS as never,
+      { ...f.NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+    );
+    const m = (k: string) =>
+      Math.round(r.perMethod.find((x: { method: string }) => x.method === k)?.valuation ?? 0);
+    return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
+  };
+
+  it("is worth 39.3% on the composite, and 7 of 23 production snapshots do it", async () => {
+    // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
+    // valuation_snapshots belong to companies with a BLANK industry (4 distinct
+    // companies), which resolves to INDUSTRIES.default. The remaining 16 are
+    // "SaaS". So this is not hypothetical -- it is a sixth of the book.
+    const saas = await runIndustry("SaaS");
+    const blank = await runIndustry("");
+
+    expect(saas.weighted).toBe(3_308_842);
+    expect(blank.weighted).toBe(4_610_772);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(0.393, 3);
+
+    // It moves every method that reads the industry table, all upward.
+    expect(blank.multiple).toBeGreaterThan(saas.multiple * 2.4); // 3.00x vs 1.04x revenue
+    expect(blank.vc).toBeGreaterThan(saas.vc);                   // 9.00x vs 6.77x EBITDA
+    expect(blank.ltg).toBeGreaterThan(saas.ltg);                 // beta 1.05 vs 1.23
+  });
+
+  it("matches an unknown industry string to the same generous fallback", async () => {
+    // The matcher normalises case, underscores and spaces, so anything it does
+    // not recognise -- "Software", "B2B SaaS", "Enterprise Software" -- lands on
+    // `default` rather than on the nearest sector.
+    const software = await runIndustry("Software");
+    const blank = await runIndustry("");
+    expect(software.weighted).toBe(blank.weighted);
+  });
+});
+
+describe("DCF-multiple — the remaining divergences", () => {
+  it("applies today's multiple to year 5 with no fade toward a mature profile", async () => {
+    const { buildDefaultParameters } = await import("../defaults");
+    const { INDUSTRIES } = await import("../referenceData");
+    const f = await import("./fixtures/northwind");
+    const d = buildDefaultParameters(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never, f.NORTHWIND_BALANCE_SHEET as never
+    );
+    // exit_multiple IS the current industry multiple, unmodified.
+    expect(d.dcf_multiple.exit_multiple).toBe(INDUSTRIES.SaaS.revenueMultiple);
+
+    // The spec: "A Year 5 business growing 15% should not automatically receive
+    // the same revenue multiple as a current peer growing 70%", and in Common
+    // Errors, "Applying a current high-growth multiple to a slower-growing
+    // terminal business." Northwind grows 36.7% into year 5 -- so the terminal
+    // profile is not a mature one either, which cuts both ways and is exactly
+    // why the spec wants the multiple chosen FOR the terminal date.
+    expect(8_200_000 / 6_000_000 - 1).toBeCloseTo(0.3667, 4);
+  });
+
+  it("is 71.9% terminal value, and is never cross-checked against DCF-LTG", () => {
+    // Same decomposition as the LTG block above, same FCFE stream.
+    const R = 0.112623, ILLIQ = 0.25, NON_OP = 60_000, SURV5 = 0.384;
+    const sum = 750_019;
+    const tv = 8_200_000 * 1.04 * SURV5;
+    const dtv = tv / Math.pow(1 + R, 5);
+    expect(Math.round((sum + dtv) * (1 - ILLIQ) + NON_OP)).toBe(2_062_969); // the baseline
+    expect(dtv / (sum + dtv)).toBeCloseTo(0.719, 3);
+
+    // The spec has a whole section titled "Cross-Check Against Perpetual
+    // Growth", and its Common Errors close with "Averaging exit-multiple and
+    // perpetual-growth outputs without reconciling them". At expansion the two
+    // carry 36% each, disagree by 54%, and nothing reconciles them.
+    expect(3_169_409 / 2_062_969).toBeCloseTo(1.536, 3);
+  });
+
+  it("derives the terminal metric from an unnormalised final forecast year", async () => {
+    // The spec has a section "Normalizing the Terminal Year". Revenue is a more
+    // robust terminal metric than FCFE -- it cannot be distorted by working
+    // capital or debt repayment the way DCF-LTG's is -- so this is milder here
+    // than divergence 3 of AUDIT-04. But the year is still a 36.7%-growth year,
+    // and the multiple applied to it is a current-market one.
+    const f = await import("./fixtures/northwind");
+    const last = f.NORTHWIND_FINANCIALS.reduce((a, b) => (b.yearOffset > a.yearOffset ? b : a));
+
+    // The metric is that year's revenue taken as-is, with no adjustment.
+    expect(last.yearOffset).toBe(5);
+    expect(last.revenue).toBe(8_200_000);
+    const terminalValue = last.revenue * 1.04 * 0.384;
+    expect(Math.round(terminalValue)).toBe(3_274_752);
+
+    // And the margin that revenue multiple is implicitly priced against.
+    const ebitda = last.revenue - last.cogs - last.salaries - last.otherOpex;
+    expect(ebitda / last.revenue).toBeCloseTo(0.252, 3);
+  });
+});
