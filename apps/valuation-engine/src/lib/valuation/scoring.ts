@@ -190,12 +190,43 @@ function rawFundingRequired(answers: QuestionnaireAnswers): number {
   return ratio < 0.5 ? 65 : ratio < 1.0 ? 50 : 35;
 }
 
-// Checklist-only criterion (no Scorecard counterpart) -- already a direct 0-1 "% of ideal",
-// which is the correct unit for Checklist, so it's untouched by the rescale above.
+/**
+ * Checklist-only criterion (no Scorecard counterpart) -- already a direct 0-1
+ * "% of ideal", which is the correct unit for Checklist, so it is untouched by
+ * the rescale above.
+ *
+ * The spec names TWO inputs for Operating Stage: "the company's development
+ * stage and current profitability". Only the first was read. `sustainably_breakeven`
+ * has been collected by the wizard since this method shipped and fed nothing, so
+ * a revenue-generating but loss-making company scored the maximum on a criterion
+ * that is meant to measure what it has demonstrably achieved.
+ *
+ * Not breakeven scores 0.4 rather than 0: for an early-stage company it is the
+ * normal state, not a failure, and the spec lists "progress toward break-even" as
+ * evidence rather than breakeven itself as a gate.
+ *
+ * The all-absent case still returns 0, unchanged. That is the zero-vs-neutral
+ * inconsistency in AUDIT-02 divergence 2 -- the other four criteria treat absence
+ * as average -- and it is deliberately left alone here because it is Ed's
+ * decision, not something to change while adding an input.
+ */
 function scoreOperatingStage(answers: QuestionnaireAnswers): number {
+  const signals: number[] = [];
+
   if (answers.product_status) {
     const status = answers.product_status;
-    return status === 'revenue_generating' ? 1.0 : status === 'beta' ? 0.5 : status === 'mvp' ? 0.25 : 0;
+    signals.push(
+      status === 'revenue_generating' ? 1.0 : status === 'beta' ? 0.5 : status === 'mvp' ? 0.25 : 0
+    );
   }
-  return 0;
+  // Only a real boolean counts. The portal maps "Yes"/"No" before sending, but
+  // the compute route is callable by n8n with any payload, and a leaked string
+  // would be truthy -- "No" would score as profitable. Belt and braces for a
+  // defect the portal's own test caught once already.
+  if (typeof answers.sustainably_breakeven === 'boolean') {
+    signals.push(answers.sustainably_breakeven ? 1.0 : 0.4);
+  }
+
+  if (signals.length === 0) return 0;
+  return signals.reduce((a, b) => a + b, 0) / signals.length;
 }

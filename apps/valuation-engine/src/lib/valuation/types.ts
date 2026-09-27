@@ -179,6 +179,13 @@ export interface QuestionnaireAnswers {
   has_patents?: boolean;
   has_ip?: boolean;
   ip_protection_stage?: string;
+  /**
+   * Sustainably breakeven. The Checklist spec names the Operating Stage inputs
+   * as "the company's development stage AND current profitability" -- this is the
+   * second of those. Collected by the portal wizard since the method shipped and
+   * read by nothing until now.
+   */
+  sustainably_breakeven?: boolean;
   legal_risks?: boolean;
   // Merged from external sources (snapshot/route.ts enrichment)
   capital_needed?: number;

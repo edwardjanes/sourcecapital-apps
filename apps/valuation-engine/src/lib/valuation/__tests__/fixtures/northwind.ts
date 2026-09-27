@@ -80,7 +80,10 @@ export const NORTHWIND_QUESTIONNAIRE = {
 	ip_protection_stage: 'pending',
 	ip_protection_status: 'Applications filed, pending',
 	product_rollout_stage: 'Market',
-	sustainably_breakeven: 'No',
+	// Was the raw wizard string 'No'. The portal now maps it to a boolean in
+	// buildQuestionnaire, the same way it already does team_prior_exits, so the
+	// fixture reflects what the engine actually receives.
+	sustainably_breakeven: false,
 	team_has_business_lead: true,
 	exit_strategy_readiness: '2',
 	has_strategic_investors: true,
@@ -137,16 +140,34 @@ export const NORTHWIND_QUESTIONNAIRE = {
  *
  * fix 4 does not bind here: Northwind's composite is 1.2224 after the change,
  * inside the band.
+ *
+ * UPDATED AGAIN, same day, for the Checklist Operating Stage fix: the spec names
+ * "development stage AND current profitability" as its two inputs, and
+ * `sustainably_breakeven` had been collected by the wizard since the method
+ * shipped while the engine read nothing. Northwind is revenue-generating but
+ * loss-making, so it had been scoring the MAXIMUM on a criterion measuring what
+ * it has demonstrably achieved.
+ *
+ *   operating_stage score  1.0 -> 0.7   (revenue_generating 1.0 averaged with not-breakeven 0.4)
+ *   checklist    10,843,875 -> 9,925,875   -8.47%
+ *   scorecard     8,679,750 -> 8,679,750    0.00%  (operating_stage is Checklist-only)
+ *   weighted      3,363,922 -> 3,308,842   -1.64%
+ *
+ * Reconciles exactly: the achievement factor drops 0.20 x 0.3 = 0.06, which
+ * against the GBP 15,300,000 ceiling is -918,000; at Checklist's 6% weight at
+ * expansion stage that is -55,080 on the composite. At `development` stage,
+ * where Checklist carries 30% and 16 of 19 companies sit, the same change would
+ * be five times larger.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3363921.7249949267,
-	lowBound: 3040985.239395414,
-	highBound: 3686858.21059444,
+	weightedValuation: 3308841.7249949267,
+	lowBound: 2991192.9193954137,
+	highBound: 3626490.53059444,
 	discountRate: 0.112623,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
-		{ method: 'checklist', weight: 0.06, valuation: 10843875 },
+		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
 		{ method: 'vc', weight: 0.16, valuation: 1930301 },
 		{ method: 'dcf_ltg', weight: 0.36, valuation: 3169409 },
 		{ method: 'dcf_multiple', weight: 0.36, valuation: 2062969 },

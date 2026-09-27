@@ -1,6 +1,7 @@
 import { expect, it, describe } from "vitest";
 import { computeChecklist } from "../checklist";
 import { CHECKLIST_CRITERIA_WEIGHTS, STAGE_DEFAULT_WEIGHTS } from "../referenceData";
+import { deriveChecklistCriteriaScores } from "../scoring";
 
 const withScores = (s: Record<string, number>) =>
   Object.fromEntries(
@@ -121,4 +122,59 @@ describe("Checklist", () => {
     expect(STAGE_DEFAULT_WEIGHTS.growth.checklist).toBe(0);
     expect(STAGE_DEFAULT_WEIGHTS.maturity.checklist).toBe(0);
   });
+});
+
+describe("Checklist operating stage", () => {
+  // The spec names two inputs: "the company's development stage and current
+  // profitability". These assert both are read, since the second was collected
+  // by the wizard and ignored by the engine until 27 Sep 2026.
+  const stage = (a: Record<string, unknown>) =>
+    (deriveChecklistCriteriaScores(a as never) as Record<string, number>).operating_stage;
+
+  it("reads profitability as well as development stage", () => {
+    // Revenue-generating and profitable: full marks.
+    expect(stage({ product_status: "revenue_generating", sustainably_breakeven: true })).toBeCloseTo(1.0, 10);
+    // Revenue-generating but loss-making: no longer full marks, which is the fix.
+    expect(stage({ product_status: "revenue_generating", sustainably_breakeven: false })).toBeCloseTo(0.7, 10);
+  });
+
+  it("does not let a loss-making company score the maximum", () => {
+    const before = 1.0; // what product_status alone gave
+    const after = stage({ product_status: "revenue_generating", sustainably_breakeven: false });
+    expect(after).toBeLessThan(before);
+  });
+
+  it("treats not-yet-breakeven as normal rather than a failure", () => {
+    // 0.4 not 0 -- the spec lists "progress toward break-even" as evidence, and
+    // for an early-stage company not being profitable is the expected state.
+    expect(stage({ sustainably_breakeven: false })).toBeCloseTo(0.4, 10);
+    expect(stage({ sustainably_breakeven: true })).toBeCloseTo(1.0, 10);
+  });
+
+  it("still scores each development stage as before when profitability is unknown", () => {
+    expect(stage({ product_status: "revenue_generating" })).toBeCloseTo(1.0, 10);
+    expect(stage({ product_status: "beta" })).toBeCloseTo(0.5, 10);
+    expect(stage({ product_status: "mvp" })).toBeCloseTo(0.25, 10);
+    expect(stage({ product_status: "idea" })).toBeCloseTo(0, 10);
+  });
+
+  it("leaves the all-absent case at zero, pending the zero-vs-neutral decision", () => {
+    // AUDIT-02 divergence 2: the other four criteria treat absence as average.
+    // Deliberately unchanged here -- that is a decision, not something to alter
+    // while adding an input.
+    expect(stage({})).toBe(0);
+  });
+});
+
+it("ignores a non-boolean breakeven value rather than misreading it", () => {
+  // A leaked "No" string is truthy and would score the company as profitable --
+  // the opposite of the answer. The compute route accepts arbitrary payloads
+  // from n8n, so this is guarded in the engine as well as in the portal.
+  const s = (a: Record<string, unknown>) =>
+    (deriveChecklistCriteriaScores(a as never) as Record<string, number>).operating_stage;
+  expect(s({ product_status: "beta", sustainably_breakeven: "No" as never })).toBeCloseTo(0.5, 10);
+  expect(s({ product_status: "beta", sustainably_breakeven: "Yes" as never })).toBeCloseTo(0.5, 10);
+  expect(s({ product_status: "beta", sustainably_breakeven: "" as never })).toBeCloseTo(0.5, 10);
+  // The real boolean still works.
+  expect(s({ product_status: "beta", sustainably_breakeven: true })).toBeCloseTo(0.75, 10);
 });
