@@ -73,7 +73,9 @@ export async function computeValuation(
     lastFcfeYear?.fcfe || 0,
     parameters.dcf_ltg.survival_rates[survivalRateIndexLtg] || 0,
     discountRate,
-    parameters.dcf_ltg.terminal_growth_rate
+    parameters.dcf_ltg.terminal_growth_rate,
+    lastFcfeYear?.netIncome,
+    parameters.dcf_ltg.terminal_return_on_new_capital
   );
 
   const dcfLtgResult = computeDcfShared(

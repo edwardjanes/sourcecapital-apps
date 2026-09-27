@@ -76,6 +76,19 @@ export function computeLtgTerminalValue(
   survivalRate: number,
   discountRate: number,
   requestedGrowthRate: number,
+  /**
+   * Terminal-year net income. When supplied, the spec's reinvestment form is
+   * computed and USED in place of the naive form. Optional so the naive form
+   * stays callable and testable on its own.
+   */
+  terminalNetIncome?: number,
+  /**
+   * Return on new capital for the terminal period. Defaults to the discount
+   * rate, i.e. no excess returns in perpetuity -- the spec's own guidance:
+   * "Competitive forces often push returns on incremental capital toward WACC
+   * over time", and assuming otherwise "is a strong assumption".
+   */
+  returnOnNewCapital?: number,
   minGrowthRate: number = LTG_GROWTH_RATE_MIN,
   minSpread: number = MIN_LTG_SPREAD
 ): LtgTerminalValue {
@@ -93,12 +106,50 @@ export function computeLtgTerminalValue(
 
   const floored = growthRateUsed < requestedGrowthRate || spreadUsed > naturalSpread;
 
+  // The naive form: grow the terminal year's actual cash flow by g.
+  const naiveTerminalValue = (terminalFcfe * survivalRate * (1 + growthRateUsed)) / spreadUsed;
+
+  // The reinvestment form. The spec: "growth is not free" -- g = RR x RONIC, so
+  // RR = g / RONIC and steady-state cash flow is earnings net of the
+  // reinvestment that growth requires.
+  //
+  // This is what makes the terminal year a STEADY state rather than a
+  // continuation of the forecast's last year. The naive form carries whatever
+  // working-capital draw, debt repayment and growth capex that year happened to
+  // have, and grows all of it in perpetuity. Northwind's year 5 carries a
+  // GBP 154,000 working-capital draw sized for 36.7% revenue growth and a
+  // GBP 50,000 debt repayment against a GBP 250,000 balance -- neither can hold
+  // forever, and the spec's Steady-State Checklist asks for exactly this.
+  //
+  // Note the spread floor protects this too: MIN_LTG_SPREAD guarantees
+  // RONIC > g whenever RONIC defaults to the discount rate, so the reinvestment
+  // rate cannot reach or exceed 1 and turn terminal cash flow negative.
+  const ronic = returnOnNewCapital ?? discountRate;
+  const hasReinvestmentForm = typeof terminalNetIncome === 'number' && Number.isFinite(terminalNetIncome) && ronic > 0;
+
+  const reinvestmentRate = hasReinvestmentForm ? growthRateUsed / ronic : null;
+  const reinvestmentTerminalValue = hasReinvestmentForm
+    ? ((terminalNetIncome as number) * (1 + growthRateUsed) * (1 - (reinvestmentRate as number)) * survivalRate) / spreadUsed
+    : null;
+
+  const basis: 'naive' | 'reinvestment' = hasReinvestmentForm ? 'reinvestment' : 'naive';
+  const terminalValue = basis === 'reinvestment' ? (reinvestmentTerminalValue as number) : naiveTerminalValue;
+
   return {
-    terminalValue: (terminalFcfe * survivalRate * (1 + growthRateUsed)) / spreadUsed,
+    terminalValue,
     growthRateRequested: requestedGrowthRate,
     growthRateUsed,
     spreadUsed,
     floored,
     impliedMultiple: (1 + growthRateUsed) / spreadUsed,
+    basis,
+    naiveTerminalValue,
+    reinvestmentTerminalValue,
+    reinvestmentRate,
+    returnOnNewCapital: hasReinvestmentForm ? ronic : null,
+    reinvestmentDisagreement:
+      hasReinvestmentForm && naiveTerminalValue !== 0
+        ? (reinvestmentTerminalValue as number) / naiveTerminalValue - 1
+        : null,
   };
 }
