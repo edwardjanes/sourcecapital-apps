@@ -131,8 +131,8 @@ describe("Size premium — effect on the valuation", () => {
     const after = await run();
 
     expect(after.ltg).toBe(1_942_032);
-    expect(after.mult).toBe(1_710_139);
-    expect(after.w).toBe(2_739_967);
+    expect(after.mult).toBe(4_131_506);
+    expect(after.w).toBe(3_615_309);
 
     // Correct blast radius.
     expect(after.vc).toBe(before.vc);
@@ -142,8 +142,8 @@ describe("Size premium — effect on the valuation", () => {
     // DCF-LTG moves more than DCF-multiple because the rate enters twice there:
     // once discounting, once in the Gordon denominator.
     expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.3671, 3);
-    expect(after.mult / before.mult - 1).toBeCloseTo(-0.1710, 3);
-    expect(after.w / before.w - 1).toBeCloseTo(-0.1627, 3);
+    expect(after.mult / before.mult - 1).toBeCloseTo(-0.1804, 3);
+    expect(after.w / before.w - 1).toBeCloseTo(-0.1685, 3);
   });
 
   it("makes the cash-flow methods read LOWER, which widens the method gap", async () => {
@@ -155,8 +155,9 @@ describe("Size premium — effect on the valuation", () => {
     const before = await run(0.112623);
     const after = await run();
     const gap = (x: Awaited<ReturnType<typeof run>>) => ((x.sc + x.ck) / 2) / ((x.ltg + x.mult) / 2);
-    expect(gap(before)).toBeCloseTo(3.6, 1);
-    expect(gap(after)).toBeCloseTo(5.1, 1);
+    // Measured after the multiple re-sourcing, which narrowed both readings.
+    expect(gap(before)).toBeCloseTo(2.3, 1);
+    expect(gap(after)).toBeCloseTo(3.1, 1);
     expect(gap(after)).toBeGreaterThan(gap(before));
   });
 

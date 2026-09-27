@@ -140,25 +140,124 @@ export function getCountryDataTier(country: string | undefined | null): CountryD
   return 'illustrative';
 }
 
-export const INDUSTRIES = {
-  SaaS:        { beta: 1.23, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
-  Fintech:     { beta: 0.78, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
-  AI_ML:       { beta: 1.55, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
-  Marketplace: { beta: 0.92, ebitdaMultiple: 8.00, revenueMultiple: 1.19 },
-  Ecommerce:   { beta: 0.76, ebitdaMultiple: 8.00, revenueMultiple: 1.19 },
-  Healthtech:  { beta: 0.69, ebitdaMultiple: 7.94, revenueMultiple: 1.29 },
-  Biotech:     { beta: 1.03, ebitdaMultiple: 7.90, revenueMultiple: 1.30 },
-  Hardware:    { beta: 1.31, ebitdaMultiple: 7.26, revenueMultiple: 0.85 },
-  Deeptech:    { beta: 1.40, ebitdaMultiple: 10.47, revenueMultiple: 1.29 },
-  Cleantech:   { beta: 0.46, ebitdaMultiple: 9.35, revenueMultiple: 3.55 },
-  MobileApp:   { beta: 1.55, ebitdaMultiple: 6.77, revenueMultiple: 1.04 },
-  Gaming:      { beta: 1.01, ebitdaMultiple: 6.93, revenueMultiple: 1.73 },
-  EdTech:      { beta: 0.66, ebitdaMultiple: 4.68, revenueMultiple: 0.81 },
-  Logistics:   { beta: 0.85, ebitdaMultiple: 7.15, revenueMultiple: 0.89 },
-  PropTech:    { beta: 0.58, ebitdaMultiple: 6.53, revenueMultiple: 2.39 },
-  Media:       { beta: 0.48, ebitdaMultiple: 6.08, revenueMultiple: 0.81 },
-  default:     { beta: 1.05, ebitdaMultiple: 9, revenueMultiple: 3 },
+/**
+ * Sector exit multiples, re-sourced 27 Sep 2026. Previously `INDUSTRIES` carried
+ * `ebitdaMultiple` and `revenueMultiple` as two independent constants with NO
+ * provenance comment of any kind, and they contradicted each other: SaaS held
+ * 6.77x EBITDA and 1.04x revenue, an implied mature margin of 15.4%, while four
+ * different sectors (SaaS, Fintech, AI/ML, MobileApp) shared one identical pair.
+ *
+ * Three independent lines of evidence said the REVENUE multiple was the broken
+ * one, all recorded in AUDIT-05 and AUDIT-06:
+ *
+ *   1. The row contradicted itself. The spec's identity is
+ *      EV/Revenue = EV/EBITDA x EBITDA margin, and "revenue multiple selection
+ *      cannot be separated from mature-margin assumptions".
+ *   2. The comparables users actually typed into the wizard run 4.1x to 10.9x
+ *      revenue, median 6.0x -- against a table saying 1.04x.
+ *   3. This repo's own test file already said so:
+ *      "Development-stage SaaS typically valued at 4-8x revenue".
+ *
+ * These are EXIT multiples, applied to a YEAR-5 metric -- dcf_multiple uses
+ * `revenueMultiple` and the VC method uses `ebitdaMultiple`. So the right
+ * reference is a normalised through-cycle figure for a scaled business, not a
+ * current growth-company ARR multiple. The DCF-EM spec is explicit: "A Year 5
+ * business growing 15% should not automatically receive the same revenue multiple
+ * as a current peer growing 70%."
+ *
+ * SOURCE. Aswath Damodaran's US industry datasets, January 2026:
+ *   EV/Sales    pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/psdata.html
+ *   EV/EBITDA   pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/vebitda.html
+ * (the EV/EBITDA figures are the "only positive EBITDA firms" column).
+ *
+ * Both columns of every row come from the SAME source pair, so the implied mature
+ * margin is the source's own and the two multiples cannot contradict each other.
+ * A test asserts `revenueMultiple / ebitdaMultiple === impliedMatureMargin` for
+ * every sector, which is what makes the 15.4%-vs-46.6% class of defect
+ * unrepeatable rather than merely fixed.
+ */
+const SECTOR_MULTIPLE_SOURCE = {
+  // Damodaran industry, its EV/Sales and EV/EBITDA, and the firm count behind it.
+  SaaS:        { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
+  Fintech:     { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309,
+                 note: 'Mapped to software rather than "Financial Svcs (Non-bank & Insurance)" (EV/Sales 18.91), whose revenue definition is not comparable for financial firms.' },
+  AI_ML:       { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
+  MobileApp:   { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
+  Marketplace: { industry: 'Software (Internet)',             evSales:  9.56, evEbitda: 30.26, firms: 29 },
+  Ecommerce:   { industry: 'Retail (General)',                evSales:  2.05, evEbitda: 17.38, firms: 0,
+                 note: 'Damodaran publishes no "Retail (Online)" row; Retail (General) is the nearest.' },
+  Healthtech:  { industry: 'Healthcare Information and Technology', evSales: 5.31, evEbitda: 21.27, firms: 115 },
+  Biotech:     { industry: 'Drugs (Biotechnology)',           evSales:  7.92, evEbitda: 15.78, firms: 496 },
+  Hardware:    { industry: 'Computers/Peripherals',           evSales:  6.63, evEbitda: 25.42, firms: 36 },
+  Deeptech:    { industry: 'Electronics (General)',           evSales:  3.21, evEbitda: 19.99, firms: 114,
+                 note: 'Deeptech spans many industries; electronics is a middling proxy, not a match.' },
+  Cleantech:   { industry: 'Green & Renewable Energy',        evSales:  7.87, evEbitda: 13.44, firms: 15 },
+  Gaming:      { industry: 'Software (Entertainment)',        evSales:  9.13, evEbitda: 22.01, firms: 77 },
+  EdTech:      { industry: 'Education',                      evSales:  1.99, evEbitda:  9.26, firms: 32 },
+  Logistics:   { industry: 'Transportation',                  evSales:  1.64, evEbitda: 12.55, firms: 19 },
+  PropTech:    { industry: 'Real Estate (Operations & Services)', evSales: 1.46, evEbitda: 21.95, firms: 54 },
+  Media:       { industry: 'Entertainment',                   evSales:  4.33, evEbitda: 19.41, firms: 92 },
+  default:     { industry: 'Total Market (without financials)', evSales: 3.46, evEbitda: 16.95, firms: 4822,
+                 note: 'Deliberately the whole-market figure rather than a generous sector guess. The previous default (3.00x revenue, 9.00x EBITDA, beta 1.05) was RICHER than SaaS on every axis, so leaving `industry` blank was worth +37% on the composite across 7 of 23 production snapshots. A fallback must never beat the thing it stands in for.' },
 } as const;
+
+/**
+ * Discount applied to Damodaran's published sector aggregates to reach a figure
+ * appropriate to a small company.
+ *
+ * WHY ONE IS NEEDED. Damodaran's tables are aggregates (total EV / total sales),
+ * which is cap-weighted, so a handful of mega-caps dominate. Software (System &
+ * Application) reads 11.41x EV/Sales across 309 firms largely because of the few
+ * largest. Our companies reach single-digit millions of revenue by year 5.
+ *
+ * CALIBRATION. Software is the one sector with a second, independent reading at
+ * the right size cohort: the SaaS Capital Index and the SEG SaaS Index both put
+ * the EQUAL-WEIGHTED median near 3.2x TTM revenue as of mid-2026. 3.2 / 11.41 =
+ * 0.28. Applied to both columns of a row it leaves the implied margin untouched,
+ * so consistency survives.
+ *
+ * THE HONEST WEAKNESS, stated because it matters. One calibration point is
+ * applied to seventeen sectors, and it is almost certainly too harsh for those
+ * whose aggregate is NOT mega-cap distorted -- Transportation (19 firms),
+ * Education (32), Real Estate (54). Per-sector small-cap medians are the fix and
+ * are not available here. The factor is deliberately a single named constant so
+ * that fix lands in one place.
+ *
+ * THE ALTERNATIVE CONSIDERED. A 0.5 factor puts SaaS at 5.7x, which matches both
+ * the comparables users entered (median 6.0x) and this repo's own "4-8x revenue"
+ * comment. It was rejected because those are entry multiples for companies still
+ * growing fast, and these are EXIT multiples for a business five years further on
+ * -- exactly the substitution the DCF-EM spec warns against. 0.28 is the
+ * conservative, public, equal-weighted, through-cycle reading.
+ */
+export const SMALL_COMPANY_MULTIPLE_FACTOR = 0.28;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Betas are unchanged by the multiple re-sourcing and keep their prior values. */
+const SECTOR_BETAS = {
+  SaaS: 1.23, Fintech: 0.78, AI_ML: 1.55, Marketplace: 0.92, Ecommerce: 0.76,
+  Healthtech: 0.69, Biotech: 1.03, Hardware: 1.31, Deeptech: 1.40, Cleantech: 0.46,
+  MobileApp: 1.55, Gaming: 1.01, EdTech: 0.66, Logistics: 0.85, PropTech: 0.58,
+  Media: 0.48, default: 1.05,
+} as const;
+
+export const INDUSTRIES = Object.fromEntries(
+  (Object.keys(SECTOR_MULTIPLE_SOURCE) as Array<keyof typeof SECTOR_MULTIPLE_SOURCE>).map((key) => {
+    const src = SECTOR_MULTIPLE_SOURCE[key];
+    return [key, {
+      beta: SECTOR_BETAS[key],
+      revenueMultiple: round2(src.evSales * SMALL_COMPANY_MULTIPLE_FACTOR),
+      ebitdaMultiple: round2(src.evEbitda * SMALL_COMPANY_MULTIPLE_FACTOR),
+      /** The source's own implied mature EBITDA margin: EV/Sales / EV/EBITDA. */
+      impliedMatureMargin: src.evSales / src.evEbitda,
+      source: `Damodaran US industry data, January 2026, "${src.industry}" (${src.firms} firms), scaled by SMALL_COMPANY_MULTIPLE_FACTOR.`,
+    }];
+  })
+) as Record<keyof typeof SECTOR_MULTIPLE_SOURCE, {
+  beta: number; revenueMultiple: number; ebitdaMultiple: number;
+  impliedMatureMargin: number; source: string;
+}>;
 
 export const VC_REQUIRED_ROI = {
   idea: 1.3593,

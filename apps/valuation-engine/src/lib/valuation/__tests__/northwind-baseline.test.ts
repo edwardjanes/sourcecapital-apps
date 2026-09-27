@@ -127,13 +127,18 @@ describe('Northwind baseline (snapshot 6cdd8d1d)', () => {
     // z8mad3qurk: the two methods that take a sector multiple come out well
     // below the one that does not. dcf_ltg takes terminal value from a
     // perpetuity growth rate; dcf_multiple and vc take the sector figures.
-    expect(by('dcf_ltg').valuation).toBeGreaterThan(by('dcf_multiple').valuation);
-    // dcf_ltg vs vc has been close since the size premium took the rate to
-    // 15.96%: it fell to 1,886,798 against vc's 1,930,301, then the terminal
-    // normalisation returned it to 1,942,032, just above again. Asserted as a
-    // near-tie rather than an ordering, because the ordering is not meaningful
-    // at a 0.6% difference and would flip on any further change to either.
-    expect(by('dcf_ltg').valuation / by('vc').valuation).toBeCloseTo(1.006, 3);
+    // dcf_multiple now EXCEEDS dcf_ltg, reversing the original snapshot. The
+    // sector multiple re-sourcing (27 Sep 2026) took SaaS revenueMultiple from
+    // 1.04x to 3.19x and dcf_multiple from 1,710,139 to 4,131,506, while dcf_ltg
+    // uses neither multiple and did not move.
+    expect(by('dcf_multiple').valuation).toBeGreaterThan(by('dcf_ltg').valuation);
+    // dcf_ltg and vc have been within about 1% of each other since the size
+    // premium took the rate to 15.96%, and the ordering has flipped twice --
+    // dcf_ltg below vc after the premium, above it after the terminal
+    // normalisation, and marginally below again after the multiple re-sourcing
+    // nudged vc up 1.18%. Asserted as a near-tie rather than an ordering,
+    // because at this margin the ordering carries no meaning.
+    expect(by('dcf_ltg').valuation / by('vc').valuation).toBeCloseTo(0.994, 2);
 
     // z8mad3qup8: the band is a fixed proportion of the weighted value, not a
     // measure of how much the methods agree. Asserting the ratio documents that.
