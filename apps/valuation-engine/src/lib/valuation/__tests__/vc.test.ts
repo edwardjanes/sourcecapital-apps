@@ -384,3 +384,149 @@ describe("VC Method — resilience of the terminal metric", () => {
     expect(at60.valuation / r.valuation).toBeCloseTo(4.03, 2);
   });
 });
+
+describe("VC required returns — re-based 28 Sep 2026", () => {
+  // AUDIT-03 divergence 4. The three earliest stages sat above anything the spec
+  // cites for any stage; the three later ones were already inside its ranges and
+  // are deliberately untouched.
+
+  it("puts every stage inside the spec's published range", async () => {
+    const { VC_REQUIRED_ROI } = await import("../referenceData");
+    // Sahlman's ranges as the method spec gives them, mapped earliest to latest.
+    const RANGES: Array<[keyof typeof VC_REQUIRED_ROI, number, number, string]> = [
+      ["idea",        0.50, 0.70, "Startup"],
+      ["development", 0.40, 0.60, "First stage"],
+      ["startup",     0.35, 0.50, "Second stage"],
+      ["expansion",   0.35, 0.50, "Third stage"],
+      ["growth",      0.30, 0.40, "Fourth stage"],
+      ["maturity",    0.25, 0.35, "IPO"],
+    ];
+    for (const [stage, lo, hi, row] of RANGES) {
+      expect(VC_REQUIRED_ROI[stage], `${stage} vs ${row}`).toBeGreaterThanOrEqual(lo);
+      expect(VC_REQUIRED_ROI[stage], `${stage} vs ${row}`).toBeLessThanOrEqual(hi);
+    }
+  });
+
+  it("no longer implies a 73x five-year MOIC at idea stage", async () => {
+    const { VC_REQUIRED_ROI } = await import("../referenceData");
+    const moic = (r: number) => Math.pow(1 + r, 5);
+    // Before: 73.1x, 42.3x, 24.2x. A 73x underwriting hurdle is not a hurdle.
+    expect(moic(1.3593)).toBeCloseTo(73.1, 0);
+    expect(moic(VC_REQUIRED_ROI.idea)).toBeCloseTo(14.2, 1);
+    expect(moic(VC_REQUIRED_ROI.development)).toBeCloseTo(10.5, 1);
+    expect(moic(VC_REQUIRED_ROI.startup)).toBeCloseTo(7.6, 1);
+  });
+
+  it("declines monotonically, including across the compressed middle", async () => {
+    const { VC_REQUIRED_ROI } = await import("../referenceData");
+    const order = ["idea", "development", "startup", "expansion", "growth", "maturity"] as const;
+    for (let i = 1; i < order.length; i++) {
+      expect(VC_REQUIRED_ROI[order[i]], order[i]).toBeLessThan(VC_REQUIRED_ROI[order[i - 1]]);
+    }
+    // startup 50% against expansion 48.6% is only 1.4pp. Not an artefact: Sahlman's
+    // Second and Third stage ranges are identical at 35-50%.
+    expect(VC_REQUIRED_ROI.startup - VC_REQUIRED_ROI.expansion).toBeCloseTo(0.014, 3);
+  });
+
+  it("leaves the three later stages untouched, preserving the one Equidam anchor", async () => {
+    const { VC_REQUIRED_ROI } = await import("../referenceData");
+    // 48.60% matches Equidam's own stated "minimum of about 48%" -- the only
+    // external validation point this table has, and there is no reason to spend it
+    // when the value is already inside the spec's range.
+    expect(VC_REQUIRED_ROI.expansion).toBe(0.4860);
+    expect(VC_REQUIRED_ROI.growth).toBe(0.3620);
+    expect(VC_REQUIRED_ROI.maturity).toBe(0.2610);
+  });
+
+  it("stays well above any fund-level net IRR, which is the tempting wrong number", async () => {
+    const { VC_REQUIRED_ROI } = await import("../referenceData");
+    // Contemporary surveys put target FUND net IRR near 30%+ for seed and 25-35%
+    // for Series A. Those are portfolio returns, net of fees and after most
+    // holdings have failed. This method values a single SUCCESS case and embeds
+    // failure in the rate -- it applies no survival curve, unlike both DCFs -- so
+    // its hurdle must be higher. Substituting a fund IRR would understate it.
+    const SEED_FUND_NET_IRR = 0.30;
+    expect(VC_REQUIRED_ROI.idea).toBeGreaterThan(SEED_FUND_NET_IRR * 2);
+    expect(VC_REQUIRED_ROI.development).toBeGreaterThan(SEED_FUND_NET_IRR * 1.9);
+    // And still far above the DCF discount rate, which carries no failure load
+    // because the survival curve does: GB/SaaS CAPM + size premium is 15.96%.
+    expect(VC_REQUIRED_ROI.idea / 0.159623).toBeGreaterThan(4);
+  });
+});
+
+describe("VC required returns — what it changes, and what it does not", () => {
+  const atStage = async (stage: string, roi?: number, scale = 1) => {
+    const { computeValuation } = await import("../compute");
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const fin = f.NORTHWIND_FINANCIALS.map((y) => ({
+      ...y, revenue: y.revenue * scale, cogs: y.cogs * scale, salaries: y.salaries * scale,
+      otherOpex: y.otherOpex * scale, totalDa: y.totalDa * scale, receivables: y.receivables * scale,
+      payables: y.payables * scale, capex: y.capex * scale, taxes: y.taxes * scale,
+    }));
+    const company = { ...f.NORTHWIND_COMPANY, stage };
+    const d = buildDefaultParameters(company as never, fin as never, f.NORTHWIND_BALANCE_SHEET as never);
+    if (roi !== undefined) d.vc_method.required_roi = roi;
+    const r = await computeValuation(
+      company as never, fin as never, { ...f.NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+    );
+    return {
+      preMoney: Math.round(r.methodResults.vc.preMoneyValuation),
+      clears: r.methodResults.vc.clearsHurdle,
+      weighted: Math.round(r.weightedValuation),
+    };
+  };
+
+  it("does not move Northwind's baseline at all", async () => {
+    // Northwind is `expansion`, whose hurdle was already in range and is unchanged.
+    // The whole 202-test suite passing unchanged is the other half of this proof.
+    const now = await atStage("expansion");
+    expect(now.weighted).toBe(3_931_918);
+  });
+
+  it("does not move the composite for a company whose raise cannot clear either way", async () => {
+    // At Northwind's own scale the raise does not clear at 111.47% OR at 60%, and
+    // an excluded method's VALUE is irrelevant -- so the option-(b) redistribution
+    // shipped the day before has insulated the composite from this parameter here.
+    const old = await atStage("development", 1.1147);
+    const now = await atStage("development", 0.60);
+    expect(old.clears).toBe(false);
+    expect(now.clears).toBe(false);
+    expect(now.weighted).toBe(old.weighted);
+    // The shortfall does shrink, which is reportable even when the weight is zero.
+    expect(old.preMoney).toBe(-2_165_361);
+    expect(now.preMoney).toBe(-1_150_351);
+    expect(now.preMoney).toBeGreaterThan(old.preMoney);
+  });
+
+  it("brings the method back into play for a company that could never clear before", async () => {
+    // This is where the re-basing actually changes an answer. Same company, forecast
+    // scaled 3x, still development stage: at 111.47% the raise never clears, at 60%
+    // it does, so the method is included at 16%.
+    const old = await atStage("development", 1.1147, 3);
+    const now = await atStage("development", 0.60, 3);
+    expect(old.clears).toBe(false);
+    expect(now.clears).toBe(true);
+    expect(old.preMoney).toBe(-1_496_082);
+    expect(now.preMoney).toBe(1_548_948);
+
+    // And note the DIRECTION: including VC LOWERS the composite here, because at
+    // development stage it is the lowest of the five methods.
+    expect(old.weighted).toBe(9_166_422);
+    expect(now.weighted).toBe(7_947_626);
+    expect(now.weighted / old.weighted - 1).toBeCloseTo(-0.133, 3);
+  });
+
+  it("raises the composite instead where the method already applied", async () => {
+    // At 8x scale the raise clears under BOTH hurdles, so the method is included
+    // either way and the lower hurdle simply raises its value. The effect of this
+    // change is therefore bidirectional -- it depends entirely on whether the
+    // company crosses the exclusion threshold.
+    const old = await atStage("development", 1.1147, 8);
+    const now = await atStage("development", 0.60, 8);
+    expect(old.clears).toBe(true);
+    expect(now.clears).toBe(true);
+    expect(now.weighted).toBeGreaterThan(old.weighted);
+    expect(now.weighted / old.weighted - 1).toBeCloseTo(0.110, 3);
+  });
+});

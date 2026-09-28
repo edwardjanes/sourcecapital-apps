@@ -259,10 +259,69 @@ export const INDUSTRIES = Object.fromEntries(
   impliedMatureMargin: number; source: string;
 }>;
 
+/**
+ * Required annual return for the VC method, by stage. Re-based 28 Sep 2026.
+ *
+ * WHAT WAS WRONG. The three earliest stages sat above anything the method spec
+ * cites for any stage, and by a long way:
+ *
+ *   idea         135.93%  ->  implied 73x over five years
+ *   development  111.47%  ->  implied 42x
+ *   startup       89.12%  ->  implied 24x
+ *
+ * A 73x five-year MOIC is not an underwriting hurdle. The spec's published
+ * ranges (Sahlman) top out at 50-70% for the earliest stage, with a note that
+ * "other instructional materials show similarly broad ranges, including
+ * seed-stage rates above 80% in some formulations". 135.93% is not in that
+ * neighbourhood.
+ *
+ * The three later stages were already inside the spec's ranges and are LEFT
+ * UNCHANGED -- expansion at 48.60% also happens to match Equidam's own stated
+ * "minimum of about 48%", which is the only external validation point this table
+ * has, and there is no reason to spend it.
+ *
+ * MAPPING. The engine's six stages run earliest to latest, as do Sahlman's, so
+ * they map in order:
+ *
+ *   engine        Sahlman row     published range   taken
+ *   idea          Startup            50-70%          70%
+ *   development   First stage        40-60%          60%
+ *   startup       Second stage       35-50%          50%
+ *   expansion     Third stage        35-50%        48.60%  (unchanged)
+ *   growth        Fourth stage       30-40%        36.20%  (unchanged)
+ *   maturity      IPO                25-35%        26.10%  (unchanged)
+ *
+ * WHY THE TOP OF EACH RANGE rather than the midpoint. This method applies NO
+ * survival curve -- unlike the two DCFs, which carry SURVIVAL_RATES_BY_COUNTRY --
+ * so its hurdle legitimately carries the failure load. The spec is explicit that
+ * classic VCM "usually values a success case and embeds failure and
+ * underperformance risk in a high target return". The conservative end of the
+ * published range is therefore the right pick, and it keeps the ladder monotonic
+ * above expansion's fixed 48.60%.
+ *
+ * Note the compression between `startup` (50%) and `expansion` (48.60%): only
+ * 1.4pp. That is not an artefact, it is Sahlman's own Second and Third stage
+ * ranges being identical at 35-50%.
+ *
+ * WHAT THESE ARE NOT, because the substitution is tempting and wrong. Contemporary
+ * surveys put target FUND net IRR at roughly 30%+ for seed funds and 25-35% for
+ * Series A. Those are portfolio returns, net of fees and AFTER most holdings have
+ * failed. The figure this table needs is the per-company hurdle applied to a
+ * single success case, which must be higher for exactly that reason. Using a fund
+ * net IRR here would understate the hurdle badly, and the spec warns against the
+ * mirror-image error too: "Using a 40% venture target return as WACC in a
+ * perpetual-growth DCF is generally not the same as estimating the company's
+ * market-participant cost of capital."
+ *
+ * STILL OPEN. The spec's own guidance is that these are "historical conventions,
+ * not universal contemporary mandates" and that a hurdle should be built
+ * deliberately against stage, time to exit, dilution, capital intensity and fund
+ * economics. This table is a defensible published baseline, not that build-up.
+ */
 export const VC_REQUIRED_ROI = {
-  idea: 1.3593,
-  development: 1.1147,
-  startup: 0.8912,
+  idea: 0.70,
+  development: 0.60,
+  startup: 0.50,
   expansion: 0.4860,
   growth: 0.3620,
   maturity: 0.2610,
