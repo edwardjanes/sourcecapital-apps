@@ -1,4 +1,5 @@
 import type { BenchmarkResolution } from './benchmarks';
+import type { IndustryResolution } from './referenceData';
 export type CompanyStage = 'idea'|'development'|'startup'|'expansion'|'growth'|'maturity';
 export type MetricType = 'revenue'|'ebitda';
 
@@ -202,6 +203,8 @@ export interface ValuationReportOutput {
   discountRateBuildUp?: DiscountRateBuildUp;
   /** Which benchmark cell drove Scorecard and Checklist, and how specific it was. */
   benchmarkResolution?: BenchmarkResolution;
+  /** Which sector the supplied industry string resolved to, and whether it matched. */
+  industryResolution?: IndustryResolution;
   weightedValuation: number;
   lowBound: number;
   highBound: number;
@@ -338,4 +341,6 @@ export interface UpdatedValuationParameters extends Omit<ValuationParameters, 'm
   discount_rate_build_up?: DiscountRateBuildUp;
   /** Which benchmark cell drove Scorecard and Checklist, and how specific it was. */
   benchmark_resolution?: BenchmarkResolution;
+  /** Which sector the supplied industry string resolved to, and whether it matched. */
+  industry_resolution?: IndustryResolution;
 }
