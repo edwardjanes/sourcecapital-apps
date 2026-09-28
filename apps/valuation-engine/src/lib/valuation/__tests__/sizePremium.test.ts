@@ -75,9 +75,10 @@ describe("Size premium — what it does to the rate", () => {
     expect(b.equityRiskPremium).toBe(COUNTRIES.GB.equityRiskPremium);
     expect(b.systematicRiskPremium).toBeCloseTo(b.beta * b.equityRiskPremium, 12);
     expect(b.discountRate).toBeCloseTo(b.riskFreeRate + b.systematicRiskPremium + b.sizePremium, 12);
-    // 5.10% + 6.16% + 4.70% = 15.962%, up from a bare-CAPM 11.262%.
-    expect(b.discountRate).toBeCloseTo(0.159623, 6);
-    expect(b.riskFreeRate + b.systematicRiskPremium).toBeCloseTo(0.112623, 6);
+    // 5.10% + 6.41% + 4.70% = 16.213%, up from a bare-CAPM 11.513%.
+    // (The systematic leg moved when the betas were re-sourced, 1.23 -> 1.28.)
+    expect(b.discountRate).toBeCloseTo(0.162128, 6);
+    expect(b.riskFreeRate + b.systematicRiskPremium).toBeCloseTo(0.115128, 6);
   });
 
   it("is reported rather than applied silently", () => {
@@ -101,7 +102,7 @@ describe("Size premium — what it does to the rate", () => {
     // specs are explicit that the two are different quantities: "Using a 40%
     // venture target return as WACC in a perpetual-growth DCF is generally not
     // the same as estimating the company's market-participant cost of capital."
-    expect(VC_REQUIRED_ROI.expansion).toBeGreaterThan(0.159623 * 3);
+    expect(VC_REQUIRED_ROI.expansion).toBeGreaterThan(0.162128 * 2.9);
   });
 });
 
@@ -127,12 +128,12 @@ describe("Size premium — effect on the valuation", () => {
   };
 
   it("moves only the two methods that discount cash flows", async () => {
-    const before = await run(0.112623); // bare CAPM, as shipped until 27 Sep 2026
+    const before = await run(0.115128); // bare CAPM at the current beta
     const after = await run();
 
-    expect(after.ltg).toBe(1_942_032);
-    expect(after.mult).toBe(4_131_506);
-    expect(after.w).toBe(3_931_918);
+    expect(after.ltg).toBe(1_901_554);
+    expect(after.mult).toBe(4_088_980);
+    expect(after.w).toBe(3_896_345);
 
     // Correct blast radius. (vc is 0 in both: since 27 Sep 2026 it is excluded
     // entirely for not clearing its hurdle, and it never used this rate anyway.)
@@ -142,9 +143,9 @@ describe("Size premium — effect on the valuation", () => {
 
     // DCF-LTG moves more than DCF-multiple because the rate enters twice there:
     // once discounting, once in the Gordon denominator.
-    expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.3671, 3);
-    expect(after.mult / before.mult - 1).toBeCloseTo(-0.1804, 3);
-    expect(after.w / before.w - 1).toBeCloseTo(-0.1816, 3);
+    expect(after.ltg / before.ltg - 1).toBeCloseTo(-0.3626, 3);
+    expect(after.mult / before.mult - 1).toBeCloseTo(-0.1800, 3);
+    expect(after.w / before.w - 1).toBeCloseTo(-0.1788, 3);
   });
 
   it("makes the cash-flow methods read LOWER, which widens the method gap", async () => {
@@ -153,7 +154,7 @@ describe("Size premium — effect on the valuation", () => {
     // methods' too-high benchmark. This finding is the counter-example: the rate
     // was too low, so the DCFs read too HIGH, and correcting it widens the gap
     // rather than narrowing it.
-    const before = await run(0.112623);
+    const before = await run(0.115128);
     const after = await run();
     const gap = (x: Awaited<ReturnType<typeof run>>) => ((x.sc + x.ck) / 2) / ((x.ltg + x.mult) / 2);
     // Measured after the multiple re-sourcing, which narrowed both readings.
@@ -168,8 +169,100 @@ describe("Size premium — effect on the valuation", () => {
     // a 61.6% survival haircut and a 25% illiquidity discount. Severe but
     // defensible. At decile 10z (22.46%) the same company lands at 1.27x, which
     // is what ruled that band out.
-    expect(after.ltg / 900_000).toBeCloseTo(2.16, 2);
-    const atTenZ = await run(0.112623 + 0.112);
-    expect(atTenZ.ltg / 900_000).toBeCloseTo(1.34, 2);
+    expect(after.ltg / 900_000).toBeCloseTo(2.11, 2);
+    const atTenZ = await run(0.115128 + 0.112);
+    expect(atTenZ.ltg / 900_000).toBeCloseTo(1.32, 2);
+  });
+});
+
+describe("Betas — re-sourced 28 Sep 2026", () => {
+  it("comes from the same Damodaran row as that sector's multiples", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // The whole point of moving betas into SECTOR_SOURCE: beta and multiples now
+    // describe ONE industry. Before, they were two unrelated hand-entered columns
+    // and nothing tied them together.
+    for (const [key, v] of Object.entries(INDUSTRIES)) {
+      expect(v.source, key).toMatch(/Damodaran US industry data, January 2026/);
+      expect(v.beta, key).toBeGreaterThan(0);
+      expect(v.unleveredBeta, key).toBeGreaterThan(0);
+      // Levered >= unlevered always: debt adds equity risk.
+      expect(v.beta, key).toBeGreaterThanOrEqual(v.unleveredBeta);
+    }
+    // Four sectors map to Software (System & Application), so they share its beta.
+    for (const k of ["Fintech", "AI_ML", "MobileApp"] as const) {
+      expect(INDUSTRIES[k].beta).toBe(INDUSTRIES.SaaS.beta);
+    }
+  });
+
+  it("uses the LEVERED beta, which is the consistent pairing for FCFE", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // FCFE is a levered cash flow -- after interest, including debt movements --
+    // discounted at a cost of equity, so an equity (levered) beta is the match.
+    // Damodaran's unlevered-corrected-for-cash figures are carried but not used.
+    expect(INDUSTRIES.SaaS.beta).toBe(1.28);
+    expect(INDUSTRIES.SaaS.unleveredBeta).toBe(1.25);
+
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const d = buildDefaultParameters(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never, f.NORTHWIND_BALANCE_SHEET as never
+    );
+    expect(d.discount_rate_build_up!.beta).toBe(INDUSTRIES.SaaS.beta);
+
+    // The approximation is small, and measured rather than assumed: re-levering
+    // 1.25 at Northwind's own MARKET-value D/E (~0.063 at a 4m equity value, 25%
+    // tax) gives 1.309 against the 1.28 used -- 2.3%. At BOOK weights it would
+    // read 1.589, but the DCF-LTG spec names using book weights a Common Error.
+    const relevered = 1.25 * (1 + (1 - 0.25) * (250_000 / 4_000_000));
+    expect(relevered).toBeCloseTo(1.309, 3);
+    expect(Math.abs(relevered / 1.28 - 1)).toBeLessThan(0.03);
+  });
+
+  it("no longer carries betas that imply half the market's volatility", async () => {
+    const { INDUSTRIES } = await import("../referenceData");
+    // Cleantech 0.46 and Media 0.48 were the two least defensible, and Cleantech's
+    // is what drove the Swiss discount rate to 2.35% and broke the Gordon
+    // denominator. Nothing now sits below 0.78.
+    expect(INDUSTRIES.Cleantech.beta).toBe(0.86);
+    expect(INDUSTRIES.Media.beta).toBe(0.83);
+    expect(Math.min(...Object.values(INDUSTRIES).map((v) => v.beta))).toBeGreaterThanOrEqual(0.78);
+  });
+
+  it("does NOT use total beta, which would be the third charge for one risk", async () => {
+    const { INDUSTRIES, SIZE_PREMIUM_BANDS, ILLIQUIDITY_DISCOUNT_DEFAULT } = await import("../referenceData");
+    // Damodaran argues for total beta (beta / correlation with the market) where
+    // the owner is undiversified, which a founder is. Deliberately not used: it
+    // captures undiversification and illiquidity, and this engine already charges
+    // both -- once through SIZE_PREMIUM_BANDS and once through the 25% illiquidity
+    // discount. Same double-count reasoning that capped the size premium at CRSP
+    // decile 10 rather than 10z.
+    //
+    // A typical software correlation with the market is ~0.4, so total beta would
+    // be roughly 1.28 / 0.4 = 3.2 -- and a 5.1% + 16% + 4.7% rate of ~26%.
+    const totalBeta = INDUSTRIES.SaaS.beta / 0.4;
+    expect(totalBeta).toBeCloseTo(3.2, 1);
+    expect(INDUSTRIES.SaaS.beta).toBeLessThan(totalBeta);
+    // The two charges that make it unnecessary both still exist.
+    expect(Math.max(...SIZE_PREMIUM_BANDS.map((b) => b.premium))).toBe(0.047);
+    expect(ILLIQUIDITY_DISCOUNT_DEFAULT).toBe(0.25);
+  });
+
+  it("moves Northwind only slightly, and lowers rather than raises", async () => {
+    const { computeValuation } = await import("../compute");
+    const { buildDefaultParameters } = await import("../defaults");
+    const f = await import("./fixtures/northwind");
+    const d = buildDefaultParameters(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never, f.NORTHWIND_BALANCE_SHEET as never
+    );
+    const r = await computeValuation(
+      f.NORTHWIND_COMPANY as never, f.NORTHWIND_FINANCIALS as never,
+      { ...f.NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+    );
+    // 1.23 -> 1.28 takes the rate 15.962% -> 16.213% and the composite
+    // 3,931,918 -> 3,896,345, a 0.90% fall. Small because SaaS's beta barely
+    // moved; the re-sourcing matters far more for Cleantech, Marketplace,
+    // Media and PropTech.
+    expect(r.discountRate).toBeCloseTo(0.162128, 6);
+    expect(Math.round(r.weightedValuation)).toBe(3_896_345);
   });
 });

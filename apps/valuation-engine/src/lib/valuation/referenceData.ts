@@ -176,28 +176,28 @@ export function getCountryDataTier(country: string | undefined | null): CountryD
  * every sector, which is what makes the 15.4%-vs-46.6% class of defect
  * unrepeatable rather than merely fixed.
  */
-const SECTOR_MULTIPLE_SOURCE = {
+const SECTOR_SOURCE = {
   // Damodaran industry, its EV/Sales and EV/EBITDA, and the firm count behind it.
-  SaaS:        { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
-  Fintech:     { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309,
+  SaaS:        { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25 },
+  Fintech:     { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25,
                  note: 'Mapped to software rather than "Financial Svcs (Non-bank & Insurance)" (EV/Sales 18.91), whose revenue definition is not comparable for financial firms.' },
-  AI_ML:       { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
-  MobileApp:   { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309 },
-  Marketplace: { industry: 'Software (Internet)',             evSales:  9.56, evEbitda: 30.26, firms: 29 },
-  Ecommerce:   { industry: 'Retail (General)',                evSales:  2.05, evEbitda: 17.38, firms: 0,
+  AI_ML:       { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25 },
+  MobileApp:   { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25 },
+  Marketplace: { industry: 'Software (Internet)',             evSales:  9.56, evEbitda: 30.26, firms: 29, beta: 1.69, unleveredBeta: 1.59 },
+  Ecommerce:   { industry: 'Retail (General)',                evSales:  2.05, evEbitda: 17.38, firms: 0, beta: 0.81, unleveredBeta: 0.78,
                  note: 'Damodaran publishes no "Retail (Online)" row; Retail (General) is the nearest.' },
-  Healthtech:  { industry: 'Healthcare Information and Technology', evSales: 5.31, evEbitda: 21.27, firms: 115 },
-  Biotech:     { industry: 'Drugs (Biotechnology)',           evSales:  7.92, evEbitda: 15.78, firms: 496 },
-  Hardware:    { industry: 'Computers/Peripherals',           evSales:  6.63, evEbitda: 25.42, firms: 36 },
-  Deeptech:    { industry: 'Electronics (General)',           evSales:  3.21, evEbitda: 19.99, firms: 114,
+  Healthtech:  { industry: 'Healthcare Information and Technology', evSales: 5.31, evEbitda: 21.27, firms: 115, beta: 1.11, unleveredBeta: 1.02 },
+  Biotech:     { industry: 'Drugs (Biotechnology)',           evSales:  7.92, evEbitda: 15.78, firms: 496, beta: 1.14, unleveredBeta: 1.08 },
+  Hardware:    { industry: 'Computers/Peripherals',           evSales:  6.63, evEbitda: 25.42, firms: 36, beta: 1.35, unleveredBeta: 1.32 },
+  Deeptech:    { industry: 'Electronics (General)',           evSales:  3.21, evEbitda: 19.99, firms: 114, beta: 0.97, unleveredBeta: 0.94,
                  note: 'Deeptech spans many industries; electronics is a middling proxy, not a match.' },
-  Cleantech:   { industry: 'Green & Renewable Energy',        evSales:  7.87, evEbitda: 13.44, firms: 15 },
-  Gaming:      { industry: 'Software (Entertainment)',        evSales:  9.13, evEbitda: 22.01, firms: 77 },
-  EdTech:      { industry: 'Education',                      evSales:  1.99, evEbitda:  9.26, firms: 32 },
-  Logistics:   { industry: 'Transportation',                  evSales:  1.64, evEbitda: 12.55, firms: 19 },
-  PropTech:    { industry: 'Real Estate (Operations & Services)', evSales: 1.46, evEbitda: 21.95, firms: 54 },
-  Media:       { industry: 'Entertainment',                   evSales:  4.33, evEbitda: 19.41, firms: 92 },
-  default:     { industry: 'Total Market (without financials)', evSales: 3.46, evEbitda: 16.95, firms: 4822,
+  Cleantech:   { industry: 'Green & Renewable Energy',        evSales:  7.87, evEbitda: 13.44, firms: 15, beta: 0.86, unleveredBeta: 0.47 },
+  Gaming:      { industry: 'Software (Entertainment)',        evSales:  9.13, evEbitda: 22.01, firms: 77, beta: 1.03, unleveredBeta: 1.02 },
+  EdTech:      { industry: 'Education',                      evSales:  1.99, evEbitda:  9.26, firms: 32, beta: 0.78, unleveredBeta: 0.72 },
+  Logistics:   { industry: 'Transportation',                  evSales:  1.64, evEbitda: 12.55, firms: 19, beta: 0.86, unleveredBeta: 0.71 },
+  PropTech:    { industry: 'Real Estate (Operations & Services)', evSales: 1.46, evEbitda: 21.95, firms: 54, beta: 0.97, unleveredBeta: 0.86 },
+  Media:       { industry: 'Entertainment',                   evSales:  4.33, evEbitda: 19.41, firms: 92, beta: 0.83, unleveredBeta: 0.76 },
+  default:     { industry: 'Total Market (without financials)', evSales: 3.46, evEbitda: 16.95, firms: 4822, beta: 0.99, unleveredBeta: 0.9,
                  note: 'Deliberately the whole-market figure rather than a generous sector guess. The previous default (3.00x revenue, 9.00x EBITDA, beta 1.05) was RICHER than SaaS on every axis, so leaving `industry` blank was worth +37% on the composite across 7 of 23 production snapshots. A fallback must never beat the thing it stands in for.' },
 } as const;
 
@@ -234,28 +234,59 @@ export const SMALL_COMPANY_MULTIPLE_FACTOR = 0.28;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Betas are unchanged by the multiple re-sourcing and keep their prior values. */
-const SECTOR_BETAS = {
-  SaaS: 1.23, Fintech: 0.78, AI_ML: 1.55, Marketplace: 0.92, Ecommerce: 0.76,
-  Healthtech: 0.69, Biotech: 1.03, Hardware: 1.31, Deeptech: 1.40, Cleantech: 0.46,
-  MobileApp: 1.55, Gaming: 1.01, EdTech: 0.66, Logistics: 0.85, PropTech: 0.58,
-  Media: 0.48, default: 1.05,
-} as const;
-
+/**
+ * Betas, re-sourced 28 Sep 2026 -- the last unsourced column in this table.
+ *
+ * They had no provenance comment and several were not defensible: Cleantech 0.46
+ * and Media 0.48 implied businesses roughly half as volatile as the market, and
+ * Cleantech's is what drove the Swiss Cleantech discount rate to 2.35% and broke
+ * the Gordon denominator (see MIN_LTG_SPREAD). `default` at 1.05 also sat ABOVE
+ * the market, which is not what a whole-market fallback should be.
+ *
+ * They now come from the SAME Damodaran row as that sector's multiples, so beta
+ * and multiples describe one industry rather than two. The mapping lives in
+ * SECTOR_SOURCE and a test asserts the two cannot diverge.
+ *
+ * LEVERED, NOT UNLEVERED. The engine discounts FCFE -- a levered cash flow, after
+ * interest and including debt movements -- at a cost of equity, so the consistent
+ * pairing is an equity (levered) beta. Damodaran's unlevered-corrected-for-cash
+ * figures are carried alongside for the re-levering work below but are not used.
+ *
+ * The approximation that makes this safe is small, and measured rather than
+ * assumed: re-levering software's unlevered 1.25 at Northwind's own capital
+ * structure gives 1.309 against Damodaran's levered 1.28, a 2.3% difference,
+ * using MARKET-value weights (D/E 0.063 at a ~4m equity value). At BOOK weights
+ * it would read 1.589, but book equity for a startup is accumulated losses plus
+ * paid-in capital rather than value, and the DCF-LTG spec names "using book-value
+ * rather than market-value capital weights without justification" as a Common
+ * Error. Per-company re-levering at market weights is the refinement; it is worth
+ * about 2% on the rate here and needs a D/E input the discount rate does not
+ * currently take.
+ *
+ * WHY NOT TOTAL BETA. Damodaran argues for total beta (beta / correlation with
+ * the market) when an owner is undiversified, which is the case for a founder.
+ * It is deliberately not used: it captures undiversification and illiquidity,
+ * which this engine already charges twice over through SIZE_PREMIUM_BANDS and
+ * ILLIQUIDITY_DISCOUNT_DEFAULT. Adding total beta on top would be the third
+ * charge for one risk -- the same double-count reasoning that capped the size
+ * premium at CRSP decile 10 rather than 10z.
+ */
 export const INDUSTRIES = Object.fromEntries(
-  (Object.keys(SECTOR_MULTIPLE_SOURCE) as Array<keyof typeof SECTOR_MULTIPLE_SOURCE>).map((key) => {
-    const src = SECTOR_MULTIPLE_SOURCE[key];
+  (Object.keys(SECTOR_SOURCE) as Array<keyof typeof SECTOR_SOURCE>).map((key) => {
+    const src = SECTOR_SOURCE[key];
     return [key, {
-      beta: SECTOR_BETAS[key],
+      beta: src.beta,
       revenueMultiple: round2(src.evSales * SMALL_COMPANY_MULTIPLE_FACTOR),
       ebitdaMultiple: round2(src.evEbitda * SMALL_COMPANY_MULTIPLE_FACTOR),
+      /** Damodaran's unlevered-corrected-for-cash beta. Carried, not used. */
+      unleveredBeta: src.unleveredBeta,
       /** The source's own implied mature EBITDA margin: EV/Sales / EV/EBITDA. */
       impliedMatureMargin: src.evSales / src.evEbitda,
       source: `Damodaran US industry data, January 2026, "${src.industry}" (${src.firms} firms), scaled by SMALL_COMPANY_MULTIPLE_FACTOR.`,
     }];
   })
-) as Record<keyof typeof SECTOR_MULTIPLE_SOURCE, {
-  beta: number; revenueMultiple: number; ebitdaMultiple: number;
+) as Record<keyof typeof SECTOR_SOURCE, {
+  beta: number; unleveredBeta: number; revenueMultiple: number; ebitdaMultiple: number;
   impliedMatureMargin: number; source: string;
 }>;
 

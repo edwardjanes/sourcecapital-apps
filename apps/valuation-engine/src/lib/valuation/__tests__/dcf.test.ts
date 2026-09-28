@@ -326,28 +326,48 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     };
   };
 
-  it("protected a bare-CAPM rate that fell below g", async () => {
-    // WAS THE BUG. The spec's "Required condition" is WACC > g and its Common
-    // Errors list "Setting g equal to or above WACC". Under bare CAPM, Swiss
-    // Cleantech resolved to r = 2.346% against a requested g of 2.5%: the
-    // denominator went negative, the terminal value with it, and
+  it("protected a bare-CAPM rate that fell below g, on the beta that caused it", async () => {
+    // WAS THE BUG. Swiss Cleantech resolved to r = 2.346% against a requested g of
+    // 2.5%: the denominator went negative, the terminal value with it, and
     // Math.max(0, ...) handed back a clean zero at 36% of the weight.
     //
-    // Asserted at the unit rather than through the pipeline, because since the
-    // size premium landed no real company reaches a rate that low -- which is
-    // the point of the premium. This is the guardrail still doing its job on the
-    // input that used to occur.
+    // Asserted on the HISTORICAL beta of 0.46, because the beta re-sourcing of
+    // 28 Sep 2026 removed that input: Cleantech is now 0.86 and bare CAPM gives
+    // 4.038%. That is the point of the next test -- two independent data defects
+    // were feeding one symptom.
     const { computeLtgTerminalValue } = await import("../dcf");
-    const { COUNTRIES, INDUSTRIES } = await import("../referenceData");
-    // Read from the tables rather than retyped, so the figures cannot drift.
-    const bareCapmCleantech =
-      COUNTRIES.CH.riskFree10Y + INDUSTRIES.Cleantech.beta * COUNTRIES.CH.equityRiskPremium;
-    expect(bareCapmCleantech).toBeCloseTo(0.023458, 6);
-    expect(bareCapmCleantech).toBeLessThan(0.025);
-    const t = computeLtgTerminalValue(1_289_000, 0.384, bareCapmCleantech, 0.025);
+    const { COUNTRIES } = await import("../referenceData");
+    const HISTORICAL_CLEANTECH_BETA = 0.46;
+    const bare = COUNTRIES.CH.riskFree10Y + HISTORICAL_CLEANTECH_BETA * COUNTRIES.CH.equityRiskPremium;
+    expect(bare).toBeCloseTo(0.023458, 6);
+    expect(bare).toBeLessThan(0.025);
+
+    const t = computeLtgTerminalValue(1_289_000, 0.384, bare, 0.025);
     expect(t.floored).toBe(true);
     expect(t.terminalValue).toBeGreaterThan(0);
     expect(t.growthRateUsed).toBeGreaterThan(0);
+  });
+
+  it("would no longer need the guardrail on bare CAPM alone, but only just", async () => {
+    // The beta re-sourcing alone removed the CATASTROPHIC half of the original
+    // defect: across all 442 combinations, ZERO now fall below g under bare CAPM,
+    // where two did. It did NOT remove the absurd half -- the narrowest bare
+    // spread is still 1.20% (CH/EdTech), which is a ~84x terminal multiple.
+    //
+    // So the two fixes are not redundant. The size premium is what takes the
+    // narrowest spread to 5.90%; the betas are what stop it going negative.
+    const { COUNTRIES, INDUSTRIES, resolveSizePremium } = await import("../referenceData");
+    const g = 0.025;
+    const bareSpreads = Object.values(COUNTRIES).flatMap((c) =>
+      Object.values(INDUSTRIES).map((i) => c.riskFree10Y + i.beta * c.equityRiskPremium - g)
+    );
+    expect(bareSpreads.length).toBe(442);
+    expect(bareSpreads.filter((x) => x <= 0).length).toBe(0);
+    expect(Math.min(...bareSpreads)).toBeCloseTo(0.0120, 4);
+
+    // With the premium on top.
+    const premium = resolveSizePremium(900_000).premium;
+    expect(Math.min(...bareSpreads) + premium).toBeCloseTo(0.0590, 4);
   });
 
   it("no longer needs to fire for any real company, which is the premium's job", async () => {
@@ -356,7 +376,7 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     // industry combinations at a sub-5m revenue band, ZERO now floor -- asserted
     // in full below. MIN_LTG_SPREAD is defence in depth; the cause is fixed.
     const ch = await run("Switzerland", "Cleantech");
-    expect(ch.discountRate).toBeCloseTo(0.070458, 6);
+    expect(ch.discountRate).toBeCloseTo(0.087378, 6);
     expect(ch.floored).toBe(false);
     expect(ch.ltg).toBeGreaterThan(0);
     // And no longer 126m either, at the other end.
@@ -383,14 +403,14 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     expect(all.filter((t) => t.floored).length).toBe(0);
     // Narrowest spread is CH/Cleantech at 4.55%, comfortably over the 3pp floor.
     expect(Math.min(...all.map((t) => t.spreadUsed))).toBeGreaterThan(MIN_LTG_SPREAD);
-    expect(Math.min(...all.map((t) => t.spreadUsed))).toBeCloseTo(0.045458, 5);
+    expect(Math.min(...all.map((t) => t.spreadUsed))).toBeCloseTo(0.058994, 5);
   });
 
   it("carries the UK SaaS baseline, so the above is not a harness artefact", async () => {
     const gb = await run("United Kingdom", "SaaS");
-    expect(gb.discountRate).toBeCloseTo(0.159623, 6);
+    expect(gb.discountRate).toBeCloseTo(0.162128, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(3_931_918);
+    expect(gb.weighted).toBe(3_896_345);
   });
 });
 
@@ -714,9 +734,11 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     // And it is a guardrail, not a rewrite: g is untouched wherever the spread
     // was already adequate, which is 411 of the 442.
     const untouched = all.filter((t) => !t.floored);
-    expect(untouched.length).toBe(411);
+    expect(untouched.length).toBe(431);
     expect(untouched.every((t) => t.growthRateUsed === LTG_GROWTH_RATE_DEFAULT)).toBe(true);
-    expect(all.filter((t) => t.floored).length).toBe(31);
+    // 31 floored before the beta re-sourcing of 28 Sep 2026, 11 after: plausible
+    // betas raise the rate, so fewer combinations need the guardrail at all.
+    expect(all.filter((t) => t.floored).length).toBe(11);
   });
 
   it("reports when it bound, so the report can say so", async () => {
@@ -747,7 +769,7 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
     // The locked baseline, which the guardrail itself never moved -- it changed
     // only when the size premium and the terminal normalisation landed.
-    expect(Math.round(r.weightedValuation)).toBe(3_931_918);
+    expect(Math.round(r.weightedValuation)).toBe(3_896_345);
   });
 });
 
@@ -780,7 +802,7 @@ describe("DCF-multiple — the claims mismatch", () => {
     // price-to-book) anywhere in the reference table, so this cannot be fixed by
     // choosing a different column.
     expect(Object.keys(INDUSTRIES.SaaS).sort()).toEqual(
-      ["beta", "ebitdaMultiple", "impliedMatureMargin", "revenueMultiple", "source"]
+      ["beta", "ebitdaMultiple", "impliedMatureMargin", "revenueMultiple", "source", "unleveredBeta"]
     );
     expect(INDUSTRIES.SaaS.source).toMatch(/EV\/|Damodaran/);
   });
@@ -884,7 +906,7 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("costs 24.9% on the composite, where it used to pay 36.8%", async () => {
+  it("costs 23.4% on the composite, where it used to pay 36.8%", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
     // companies), which resolves to INDUSTRIES.default. The other 16 are "SaaS".
@@ -896,9 +918,15 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(3_931_918);
-    expect(blank.weighted).toBe(2_953_002);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.249, 3);
+    expect(saas.weighted).toBe(3_896_345);
+    expect(blank.weighted).toBe(2_986_122);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.234, 3);
+
+    // The penalty weakened slightly when the betas were re-sourced: `default`
+    // moved 1.05 -> 0.99, BELOW the median named sector of 1.11, so a blank
+    // industry now gets a slightly lower discount rate. It offsets the multiples
+    // penalty without reversing it, so the honest whole-market figure was kept
+    // rather than inflated to protect a margin.
 
     // dcf_multiple falls on the lower multiple. vc reads 0 in both, because since
     // the pre-money decision it is excluded for not clearing its hurdle either
@@ -907,8 +935,9 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     expect(blank.multiple).toBeLessThan(saas.multiple * 0.5);
     expect(blank.vc).toBe(0);
     expect(saas.vc).toBe(0);
-    // dcf_ltg still RISES slightly, because `default` carries a lower beta (1.05
-    // vs 1.23) and so a lower discount rate. The beta column was not re-sourced.
+    // dcf_ltg still RISES, because `default` carries a lower beta (0.99 vs 1.28)
+    // and so a lower discount rate -- now from re-sourced figures rather than
+    // unsourced ones.
     expect(blank.ltg).toBeGreaterThan(saas.ltg);
   });
 

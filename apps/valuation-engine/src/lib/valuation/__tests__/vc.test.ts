@@ -481,7 +481,7 @@ describe("VC required returns — what it changes, and what it does not", () => 
     // Northwind is `expansion`, whose hurdle was already in range and is unchanged.
     // The whole 202-test suite passing unchanged is the other half of this proof.
     const now = await atStage("expansion");
-    expect(now.weighted).toBe(3_931_918);
+    expect(now.weighted).toBe(3_896_345);
   });
 
   it("does not move the composite for a company whose raise cannot clear either way", async () => {
@@ -512,8 +512,8 @@ describe("VC required returns — what it changes, and what it does not", () => 
 
     // And note the DIRECTION: including VC LOWERS the composite here, because at
     // development stage it is the lowest of the five methods.
-    expect(old.weighted).toBe(9_166_422);
-    expect(now.weighted).toBe(7_947_626);
+    expect(old.weighted).toBe(9_130_672);
+    expect(now.weighted).toBe(7_917_596);
     expect(now.weighted / old.weighted - 1).toBeCloseTo(-0.133, 3);
   });
 
@@ -527,6 +527,6 @@ describe("VC required returns — what it changes, and what it does not", () => 
     expect(old.clears).toBe(true);
     expect(now.clears).toBe(true);
     expect(now.weighted).toBeGreaterThan(old.weighted);
-    expect(now.weighted / old.weighted - 1).toBeCloseTo(0.110, 3);
+    expect(now.weighted / old.weighted - 1).toBeCloseTo(0.111, 3);
   });
 });
