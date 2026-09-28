@@ -153,7 +153,7 @@ describe("VC pre-money — capitalRaised is finally wired", () => {
     expect(vc.inapplicableReason).toMatch(/48\.6% required annual return/);
 
     expect(r.redistributedWeight).toBeCloseTo(0.16, 10);
-    expect(Math.round(r.weightedValuation)).toBe(3_931_918);
+    expect(Math.round(r.weightedValuation)).toBe(3_896_345);
 
     // Option (a) -- pass capital_needed and average the zero in at 16% -- would
     // have LOWERED the composite instead. The whole difference between the two
@@ -161,7 +161,7 @@ describe("VC pre-money — capitalRaised is finally wired", () => {
     const optionA = r.perMethod.reduce(
       (s: number, m: { valuation: number; weight: number }) => s + m.valuation * m.weight, 0
     );
-    expect(Math.round(optionA)).toBe(3_302_811);
+    expect(Math.round(optionA)).toBe(3_272_930);
     expect(r.weightedValuation).toBeGreaterThan(optionA);
   });
 

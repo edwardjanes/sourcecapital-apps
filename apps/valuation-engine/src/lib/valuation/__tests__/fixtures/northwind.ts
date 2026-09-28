@@ -305,19 +305,42 @@ export const NORTHWIND_QUESTIONNAIRE = {
  * here too for having no comparables. It carries 0% weight at every stage so
  * nothing moves, but a caller overriding that weight no longer drags the
  * composite toward zero. See computeWeightedValuation.
+ *
+ * UPDATED A SEVENTH TIME, 28 Sep 2026, for the BETA RE-SOURCING -- the last
+ * unsourced column in INDUSTRIES. Betas now come from the SAME Damodaran row as
+ * that sector's multiples, so the two describe one industry rather than two.
+ *
+ *   SaaS beta      1.23 -> 1.28   (Damodaran levered, Software (System & Application))
+ *   discount rate  15.962% -> 16.213%
+ *   dcf_ltg      1,942,032 -> 1,901,554   -2.08%
+ *   dcf_multiple 4,131,506 -> 4,088,980   -1.03%
+ *   weighted     3,931,918 -> 3,896,345   -0.90%
+ *
+ * Small here because SaaS's beta barely moved. The re-sourcing matters elsewhere:
+ * the implausible ones moved hard -- Cleantech 0.46 -> 0.86, Marketplace
+ * 0.92 -> 1.69, Media 0.48 -> 0.83, PropTech 0.58 -> 0.97. Cleantech's 0.46 is
+ * what drove the Swiss discount rate to 2.35% and broke the Gordon denominator in
+ * the first place; CH/Cleantech now resolves to 8.74% rather than 7.05%.
+ *
+ * `default` moved 1.05 -> 0.99 (Total Market without financials), which is BELOW
+ * the median named sector of 1.11 -- so a blank industry gets a slightly lower
+ * discount rate and a slightly higher DCF. That partially offsets the multiples
+ * penalty without reversing it: blank vs SaaS is -23.4%, against -24.9% before.
+ * The z8mad3qv1e principle -- a fallback must never pay -- still holds, so the
+ * honest whole-market figure was kept rather than inflated to preserve a margin.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3931917.971513849,
-	lowBound: 3554453.8462485196,
-	highBound: 4309382.096779179,
-	discountRate: 0.159623,
+	weightedValuation: 3896344.908771083,
+	lowBound: 3522295.7975290595,
+	highBound: 4270394.020013108,
+	discountRate: 0.162128,
 	currency: 'GBP',
 	perMethod: [
 		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
 		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
 		{ method: 'vc', weight: 0.16, valuation: 0 },
-		{ method: 'dcf_ltg', weight: 0.36, valuation: 1942032 },
-		{ method: 'dcf_multiple', weight: 0.36, valuation: 4131506 },
+		{ method: 'dcf_ltg', weight: 0.36, valuation: 1901554 },
+		{ method: 'dcf_multiple', weight: 0.36, valuation: 4088980 },
 		{ method: 'multiples', weight: 0, valuation: 0 },
 	],
 };
