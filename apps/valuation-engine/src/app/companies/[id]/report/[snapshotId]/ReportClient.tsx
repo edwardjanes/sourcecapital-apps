@@ -32,6 +32,7 @@ const NAV: NavGroup[] = [
       { id: 'forecasts', label: 'Forecasts summary' },
       { id: 'funding-ownership', label: 'Funding & ownership' },
       { id: 'valuation-summary', label: 'Valuation summary' },
+      { id: 'sensitivity', label: 'What moves this number' },
     ],
   },
   {
@@ -400,13 +401,19 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 <div className="rpt-kpi-value">{fmt(report.weightedValuation)}</div>
               </div>
               <div className="rpt-kpi">
-                <div className="rpt-kpi-label">Low Bound (–9.6%)</div>
+                <div className="rpt-kpi-label">Indicative low</div>
                 <div className="rpt-kpi-value">{fmt(report.lowBound)}</div>
               </div>
               <div className="rpt-kpi">
-                <div className="rpt-kpi-label">High Bound (+9.6%)</div>
+                <div className="rpt-kpi-label">Indicative high</div>
                 <div className="rpt-kpi-value">{fmt(report.highBound)}</div>
               </div>
+            </div>
+            <div className="rpt-footnote">
+              The indicative band is a flat &plusmn;9.6% applied to the weighted figure. It is the
+              same width whatever the inputs, so it is a presentational range rather than a measured
+              one. For what actually moves this valuation, see{' '}
+              <strong>What moves this number</strong>.
             </div>
 
             <div className="rpt-section-h">Method Comparison</div>
@@ -426,23 +433,147 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                   <tr>
                     <th>Method</th>
                     <th className="num">Valuation</th>
-                    <th className="num">Weight</th>
+                    <th className="num">Stage weight</th>
+                    <th className="num">Weight applied</th>
                     <th className="num">Contribution</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(report.perMethod || []).map((method: any) => (
-                    <tr key={method.method}>
-                      <td>{method.method}</td>
-                      <td className="num">{fmt(method.valuation)}</td>
-                      <td className="num">{formatPercent(method.weight)}</td>
-                      <td className="num">{fmt(method.weightedContribution)}</td>
-                    </tr>
-                  ))}
+                  {(report.perMethod || []).map((method: any) => {
+                    const excluded = method.applicable === false;
+                    return (
+                      <tr key={method.method}>
+                        <td>
+                          {method.method}
+                          {excluded ? ' — not applied' : ''}
+                        </td>
+                        <td className="num">{excluded ? '–' : fmt(method.valuation)}</td>
+                        <td className="num">{formatPercent(method.weight)}</td>
+                        <td className="num">
+                          {formatPercent(method.effectiveWeight ?? method.weight)}
+                        </td>
+                        <td className="num">{fmt(method.weightedContribution)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+
+            {(report.perMethod || []).some((m: any) => m.applicable === false) ? (
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">Methods Not Applied</div>
+                <div className="rpt-callout">
+                  A method that cannot produce an answer for this company surrenders its weight to
+                  the others rather than contributing a zero. A zero would read as &ldquo;worth
+                  nothing by this method&rdquo;, which is a different claim.
+                  {(report.redistributedWeight ?? 0) > 0 ? (
+                    <>
+                      {' '}
+                      {formatPercent(report.redistributedWeight)} of the weight was redistributed.
+                    </>
+                  ) : null}
+                </div>
+                <div className="rpt-param-list">
+                  {(report.perMethod || [])
+                    .filter((m: any) => m.applicable === false)
+                    .map((m: any) => (
+                      <div className="rpt-param-row" key={m.method}>
+                        <span className="k">{m.method}</span>
+                        <span className="v">{m.inapplicableReason || 'Not applicable.'}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : null}
           </section>
+
+          {/* Sensitivity */}
+          {report.sensitivity ? (
+            <section id="sensitivity" className="rpt-page">
+              <div className="rpt-kicker">Overview</div>
+              <h2 className="rpt-title">What Moves This Number</h2>
+              <p className="rpt-lede">
+                Each assumption below was moved to both ends of its own documented range, one at a
+                time, and the valuation recalculated. The largest mover is listed first.
+              </p>
+
+              <div className="rpt-kpi-row">
+                <div className="rpt-kpi">
+                  <div className="rpt-kpi-label">Lowest</div>
+                  <div className="rpt-kpi-value">{fmt(report.sensitivity.lowBound)}</div>
+                </div>
+                <div className="rpt-kpi emph">
+                  <div className="rpt-kpi-label">Base</div>
+                  <div className="rpt-kpi-value">{fmt(report.sensitivity.baseValuation)}</div>
+                </div>
+                <div className="rpt-kpi">
+                  <div className="rpt-kpi-label">Highest</div>
+                  <div className="rpt-kpi-value">{fmt(report.sensitivity.highBound)}</div>
+                </div>
+              </div>
+
+              <div className="rpt-table-scroll">
+                <table className="rpt-table">
+                  <thead>
+                    <tr>
+                      <th>Assumption</th>
+                      <th>Basis</th>
+                      <th className="num">Lower valuation</th>
+                      <th className="num">Higher valuation</th>
+                      <th className="num">Swing</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.sensitivity.drivers.map((d: any) => (
+                      <tr key={d.key}>
+                        <td>{d.label}</td>
+                        <td>{d.basis === 'unavailable' ? 'not yet measurable' : d.basis}</td>
+                        <td className="num">{d.low ? fmt(d.low.weightedValuation) : '–'}</td>
+                        <td className="num">{d.high ? fmt(d.high.weightedValuation) : '–'}</td>
+                        <td className="num">
+                          {d.impact === null ? '–' : formatPercent(d.impact, 1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">How To Read This</div>
+                <div className="rpt-callout">
+                  Each row moves one assumption while the others stay at their base value, so the
+                  rows are not additive and the range is not a confidence interval. Rows marked{' '}
+                  <em>sourced</em> use a published range; <em>modelled</em> rows use this
+                  engine&rsquo;s own documented position, which is a judgement rather than an
+                  observation.
+                </div>
+              </div>
+
+              {report.sensitivity.understated ? (
+                <div className="rpt-section-block">
+                  <div className="rpt-section-h">This Range Is Narrower Than It Should Be</div>
+                  <div className="rpt-callout">
+                    {formatPercent(1 - (report.sensitivity.coverage ?? 1))} of this valuation&rsquo;s
+                    weight rests on an assumption that cannot yet be varied, so the range above
+                    understates the real uncertainty &mdash; possibly by a wide margin. Treat it as a
+                    floor on how much this number could move, not a bound.
+                    {(report.sensitivity.gaps || []).map((g: string) => (
+                      <p key={g} style={{ marginTop: 12, marginBottom: 0 }}>
+                        {g}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rpt-page-footer">
+                <span>Source Capital Valuation Engine</span>
+                <span>One-at-a-time sensitivity</span>
+              </div>
+            </section>
+          ) : null}
 
           {/* Scorecard */}
           <section id="scorecard" className="rpt-page">
@@ -589,6 +720,101 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 numeric
               />
             </div>
+
+            {report.discountRateBuildUp ? (
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">How The Discount Rate Was Built</div>
+                <div className="rpt-param-list">
+                  <div className="rpt-param-row">
+                    <span className="k">Risk-free rate</span>
+                    <span className="v num">
+                      {formatPercent(report.discountRateBuildUp.riskFreeRate, 2)}
+                    </span>
+                  </div>
+                  <div className="rpt-param-row">
+                    <span className="k">
+                      Business risk (beta {report.discountRateBuildUp.beta} &times; equity risk
+                      premium {formatPercent(report.discountRateBuildUp.equityRiskPremium, 2)})
+                    </span>
+                    <span className="v num">
+                      {formatPercent(report.discountRateBuildUp.systematicRiskPremium, 2)}
+                    </span>
+                  </div>
+                  <div className="rpt-param-row">
+                    <span className="k">
+                      Size premium ({report.discountRateBuildUp.sizePremiumBasis})
+                    </span>
+                    <span className="v num">
+                      {formatPercent(report.discountRateBuildUp.sizePremium, 2)}
+                    </span>
+                  </div>
+                  <div className="rpt-param-row">
+                    <span className="k">
+                      <strong>Discount rate</strong>
+                    </span>
+                    <span className="v num">
+                      <strong>{formatPercent(report.discountRateBuildUp.discountRate, 2)}</strong>
+                    </span>
+                  </div>
+                </div>
+                <div className="rpt-footnote">
+                  The size premium reflects that smaller companies are priced at higher required
+                  returns than the listed comparables the beta comes from. It covers size only:
+                  failure risk is handled separately by the survival curve applied to the cash
+                  flows, and illiquidity by the discount applied at the end &mdash; charging any of
+                  them twice would understate the company. {report.discountRateBuildUp.sizePremiumSource}
+                </div>
+              </div>
+            ) : null}
+
+            {report.ltgTerminalValue ? (
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">Terminal Value Cross-Check</div>
+                <div className="rpt-param-list">
+                  <div className="rpt-param-row">
+                    <span className="k">Grown from the final forecast year</span>
+                    <span className="v num">{fmt(report.ltgTerminalValue.naiveTerminalValue)}</span>
+                  </div>
+                  <div className="rpt-param-row">
+                    <span className="k">
+                      From steady-state earnings, net of the reinvestment growth requires
+                      {report.ltgTerminalValue.reinvestmentRate !== null ? (
+                        <> ({formatPercent(report.ltgTerminalValue.reinvestmentRate, 1)} of earnings)</>
+                      ) : null}
+                    </span>
+                    <span className="v num">
+                      {report.ltgTerminalValue.reinvestmentTerminalValue !== null
+                        ? fmt(report.ltgTerminalValue.reinvestmentTerminalValue)
+                        : '–'}
+                    </span>
+                  </div>
+                </div>
+                <div className="rpt-footnote">
+                  The second figure is the one used. The first grows whatever working capital, debt
+                  movement and capital spending happened to fall in the final forecast year and
+                  assumes they repeat forever; the second works from earnings and subtracts only the
+                  reinvestment that sustaining growth actually requires.
+                  {report.ltgTerminalValue.reinvestmentDisagreement !== null &&
+                  Math.abs(report.ltgTerminalValue.reinvestmentDisagreement) > 0.15 ? (
+                    <>
+                      {' '}
+                      They differ by{' '}
+                      {formatPercent(Math.abs(report.ltgTerminalValue.reinvestmentDisagreement), 0)},
+                      which is large &mdash; the final forecast year is some way from a steady state,
+                      so this method is more than usually sensitive to that year&rsquo;s assumptions.
+                    </>
+                  ) : null}
+                  {report.ltgTerminalValue.floored ? (
+                    <>
+                      {' '}
+                      The perpetual growth rate was capped so it stayed a safe distance below the
+                      discount rate; without that cap the terminal value would be extremely
+                      sensitive to both.
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             <div className="rpt-waterfall">
               <div className="rpt-wf-row">
@@ -936,10 +1162,13 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 Country pre-money and maximum valuation baselines: published market data &mdash;
                 PitchBook-NVCA, the British Business Bank and PitchBook Europe 2025, depending on the
                 country &mdash; with Germany additionally checked against a real sample valuation
-                report. Discount rate: CAPM, with the risk-free rate from Trading Economics, beta from
-                Damodaran/NYU Stern and the equity risk premium from Damodaran. Industry multiples:
-                Equidam&rsquo;s published TRBC data (July 2026) and Damodaran unlevered beta (Jan 2026).
-                Business survival curves: national statistics offices where published, otherwise a
+                report. Discount rate: CAPM &mdash; risk-free rate from Trading Economics, levered
+                beta and equity risk premium from Damodaran/NYU Stern (January 2026) &mdash; plus a
+                size premium from Kroll&rsquo;s Cost of Capital Navigator (CRSP decile 10). Industry
+                multiples: Damodaran EV/Sales and EV/EBITDA (January 2026), scaled to a
+                small-company level calibrated against equal-weighted SaaS index medians; both
+                multiples and beta for a sector are taken from the same published row, so they
+                describe one industry. Business survival curves: national statistics offices where published, otherwise a
                 documented interpolation or a generic default. This report does not use any
                 proprietary or internal third-party valuation dataset.
               </div>
