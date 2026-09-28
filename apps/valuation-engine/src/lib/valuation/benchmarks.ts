@@ -266,3 +266,58 @@ export function resolveBenchmark(args: {
  * exists to correct. Marked `modelled` wherever it is used.
  */
 export const CHECKLIST_MAX_RATIO = 2.155;
+
+/**
+ * Spread of the benchmark distribution, as a lognormal sigma.
+ *
+ * WHY THIS IS NEEDED. Scorecard multiplies the benchmark and Checklist takes a
+ * fraction of a ceiling derived from it, so between them they are the largest
+ * driver of an early-stage valuation. Until now the sensitivity could not vary
+ * that driver at all -- no source in this file publishes quartiles -- so it was
+ * reported as `unavailable`, coverage fell to 29% at `development`, and the whole
+ * range had to be flagged as understating. A band cannot honestly replace the old
+ * fixed +/-9.6% while the biggest driver is missing from it.
+ *
+ * HOW IT IS DERIVED. One cell publishes both a median and a mean: the British
+ * Business Bank's UK seed figures, £3.2m and £6.0m. For a lognormal distribution
+ * mean/median = exp(sigma^2 / 2), so sigma = sqrt(2 * ln(6.0 / 3.2)) = 1.1213, and
+ * the quartiles follow at exp(-+0.6745 * sigma): p25 = 0.469 x median,
+ * p75 = 2.130 x median. For the UK that is £1.50m / £3.20m / £6.82m.
+ *
+ * WHAT IS ASSUMED, stated rather than buried. Two things: that these
+ * distributions are lognormal, which is a standard and defensible reading of
+ * startup valuations but is an assumption; and that ONE country's skew describes
+ * the others, which is the same shape of proxy as the 2.155x Checklist ratio.
+ * That proxy was never wrong for existing -- it was wrong for being unlabelled.
+ * So every derived quartile is marked `modelled`, and the moment any source
+ * publishes real quartiles for a cell, that cell should carry them instead and
+ * this constant should stop applying to it.
+ */
+export const BENCHMARK_LOGNORMAL_SIGMA = Math.sqrt(2 * Math.log(6_000_000 / 3_200_000));
+
+/** 75th percentile of the standard normal, for the quartile offsets. */
+const Z75 = 0.6744897501960817;
+
+export interface BenchmarkQuartiles {
+  p25: number;
+  median: number;
+  p75: number;
+  /** `sourced` only if the cell itself published them, which none do yet. */
+  basis: 'sourced' | 'modelled';
+  note: string;
+}
+
+/** Quartiles for a resolved benchmark. Derived unless the cell publishes its own. */
+export function benchmarkQuartiles(b: ValuationBenchmark): BenchmarkQuartiles {
+  const { median } = b.preMoney;
+  return {
+    p25: median * Math.exp(-Z75 * BENCHMARK_LOGNORMAL_SIGMA),
+    median,
+    p75: median * Math.exp(Z75 * BENCHMARK_LOGNORMAL_SIGMA),
+    basis: 'modelled',
+    note:
+      'Quartiles are derived, not published: a lognormal spread calibrated on the one cell that ' +
+      'reports both a median and a mean (British Business Bank UK seed, £3.2m median against a ' +
+      '£6.0m mean). Replace with real quartiles for this market as soon as any are published.',
+  };
+}

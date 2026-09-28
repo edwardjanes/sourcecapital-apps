@@ -1,4 +1,5 @@
 import { computeValuation } from './compute';
+import { benchmarkQuartiles } from './benchmarks';
 import {
   SIZE_PREMIUM_BANDS,
   SMALL_COMPANY_MULTIPLE_FACTOR,
@@ -255,28 +256,60 @@ export async function computeSensitivity(inputs: Inputs): Promise<SensitivityRes
     });
   }
 
-  // --- The benchmark, which cannot be varied yet --------------------------
+  // --- The benchmark -----------------------------------------------------
   // Scorecard multiplies it and Checklist takes a fraction of a ceiling derived
-  // from it, so it is the single largest driver at early stages -- and there is no
-  // distribution to vary it over until the benchmark reference table lands
-  // (ClickUp z8mad3quyr). Reported as a named gap rather than invented.
+  // from it, so between them this is the largest driver of an early-stage
+  // valuation. It could not be varied at all until the benchmark reference table
+  // landed and the quartiles were derived; see BENCHMARK_LOGNORMAL_SIGMA for what
+  // that derivation assumes.
   const benchmarkWeight =
     (base.perMethod.find((m) => m.method === 'scorecard')?.effectiveWeight ?? 0) +
     (base.perMethod.find((m) => m.method === 'checklist')?.effectiveWeight ?? 0);
 
-  drivers.push({
-    key: 'benchmark_pre_money',
-    label: 'Benchmark pre-money valuation',
-    basis: 'unavailable',
-    source:
-      'No distribution exists: avg_seed_pre_money is a single figure per country, and it is a ' +
-      'mean where the method requires a median. The p25/median/p75 that would drive this comes ' +
-      'with the benchmark reference table (ClickUp z8mad3quyr).',
-    low: null,
-    high: null,
-    impact: null,
-    note: `Carries ${(benchmarkWeight * 100).toFixed(1)}% of the weight here via Scorecard and Checklist.`,
-  });
+  const resolved = parameters.benchmark_resolution?.benchmark ?? null;
+
+  if (resolved && benchmarkWeight > 0) {
+    const q = benchmarkQuartiles(resolved);
+    const scaleTo = (value: number) => value / q.median;
+    const a = await at(q.p25, (p) => {
+      p.scorecard.average_pre_money_valuation *= scaleTo(q.p25);
+      p.checklist.max_valuation *= scaleTo(q.p25);
+    });
+    const b = await at(q.p75, (p) => {
+      p.scorecard.average_pre_money_valuation *= scaleTo(q.p75);
+      p.checklist.max_valuation *= scaleTo(q.p75);
+    });
+    const { low: lo, high: hi } = ends(a, b);
+    drivers.push({
+      key: 'benchmark_pre_money',
+      label: 'Benchmark pre-money valuation',
+      basis: 'modelled',
+      source:
+        `Interquartile range around the ${Math.round(q.median).toLocaleString('en-GB')} median ` +
+        `for ${resolved.geography} ${resolved.stage.replace('_', '-')}. ${q.note}`,
+      low: lo,
+      high: hi,
+      impact: Math.max(Math.abs(lo.delta), Math.abs(hi.delta)),
+      note: 'Drives Scorecard and Checklist together, so it dominates at early stages.',
+    });
+  } else {
+    drivers.push({
+      key: 'benchmark_pre_money',
+      label: 'Benchmark pre-money valuation',
+      basis: 'unavailable',
+      source: benchmarkWeight > 0
+        ? 'No benchmark resolved for this company, so there is nothing to vary.'
+        : 'Scorecard and Checklist carry no weight at this stage, so the benchmark does not affect the valuation.',
+      low: null,
+      high: null,
+      impact: null,
+      note: `Carries ${(benchmarkWeight * 100).toFixed(1)}% of the weight here.`,
+    });
+  }
+
+  const benchmarkVaried =
+    drivers.find((d) => d.key === 'benchmark_pre_money')?.impact !== null &&
+    drivers.find((d) => d.key === 'benchmark_pre_money')?.basis !== 'unavailable';
 
   drivers.sort((a, b) => (b.impact ?? -1) - (a.impact ?? -1));
 
@@ -289,8 +322,8 @@ export async function computeSensitivity(inputs: Inputs): Promise<SensitivityRes
     drivers,
     lowBound,
     highBound,
-    coverage: Math.max(0, 1 - benchmarkWeight),
-    understated: benchmarkWeight > 1e-9,
+    coverage: benchmarkVaried ? 1 : Math.max(0, 1 - benchmarkWeight),
+    understated: !benchmarkVaried && benchmarkWeight > 1e-9,
     gaps: drivers.filter((d) => d.basis === 'unavailable').map((d) => `${d.label}: ${d.source}`),
   };
 }

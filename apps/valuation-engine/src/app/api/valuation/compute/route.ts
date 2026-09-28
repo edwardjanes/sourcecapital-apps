@@ -281,7 +281,22 @@ export async function POST(request: NextRequest) {
     // computeValuation() itself stays currency-agnostic (see referenceData.ts's
     // CURRENCY_BY_COUNTRY comment) -- the label is attached here, once, to the
     // report object that gets persisted and returned.
-    const report = { ...reportRaw, currency, countryDataTier, sensitivity };
+    // The sensitivity supplies the real band. computeValuation can only offer the
+    // flat +/-9.6% fallback, because measuring a range means recomputing the
+    // valuation once per driver endpoint, which would recurse.
+    const report = {
+      ...reportRaw,
+      currency,
+      countryDataTier,
+      sensitivity,
+      ...(sensitivity
+        ? {
+            lowBound: sensitivity.lowBound,
+            highBound: sensitivity.highBound,
+            boundsBasis: 'sensitivity' as const,
+          }
+        : {}),
+    };
 
     // created_by is nullable as of 006_valuation_snapshots_created_by_nullable.sql --
     // there's no auth.users row for an n8n-triggered run, so it's left unset (null)
