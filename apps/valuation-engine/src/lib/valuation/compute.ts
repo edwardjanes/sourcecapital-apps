@@ -188,7 +188,14 @@ export async function computeValuation(
   const perMethod: ValuationReportOutput['perMethod'] = weighted.perMethod;
   const weightedValuation = weighted.weightedValuation;
 
-  // Bounds (±9.6% as per Equidam methodology)
+  // FALLBACK bounds only: a flat +/-9.6%, inherited from Equidam, which is the
+  // same width whatever the inputs and is therefore presentational rather than
+  // measured. The real band comes from computeSensitivity, which cannot run in
+  // here because it calls this function once per driver endpoint -- the compute
+  // route replaces these and sets `boundsBasis` accordingly.
+  //
+  // Kept rather than nulled so a caller that never runs the sensitivity, or one
+  // whose sensitivity throws, still gets a number instead of `undefined`.
   const lowBound = weightedValuation * 0.904;
   const highBound = weightedValuation * 1.096;
 
@@ -197,6 +204,7 @@ export async function computeValuation(
     weightedValuation,
     lowBound,
     highBound,
+    boundsBasis: 'fixed' as const,
     perMethod,
     redistributedWeight: weighted.redistributedWeight,
     allMethodsInapplicable: weighted.allMethodsInapplicable,

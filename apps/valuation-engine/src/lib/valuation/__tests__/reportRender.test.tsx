@@ -132,11 +132,16 @@ describe("Report renders the new sections for a current snapshot", () => {
     expect(html).toContain("Weight applied");
   });
 
-  it("carries the understated warning, since the benchmark cannot be varied", async () => {
+  it("no longer carries the understated warning, now the benchmark can be varied", async () => {
+    // It did, until the benchmark reference table supplied a distribution to move
+    // the largest driver over. The warning block is conditional on
+    // `sensitivity.understated`, so it disappearing is the correct signal.
     const { outputs, inputs, profile } = await buildOutputs();
     const html = render(outputs, inputs, profile);
-    expect(html).toContain("Narrower Than It Should Be");
-    expect(html).toContain("z8mad3quyr");
+    expect(html).not.toContain("Narrower Than It Should Be");
+    // The section itself is still there, with the benchmark now in the table.
+    expect(html).toContain("What Moves This Number");
+    expect(html).toContain("Benchmark pre-money valuation");
   });
 
   it("no longer claims the stale multiple and beta provenance", async () => {

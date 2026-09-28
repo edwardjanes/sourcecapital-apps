@@ -81,10 +81,10 @@ describe("Sensitivity — the drivers", () => {
   it("produces a range wider than the arbitrary band it replaces, at expansion", async () => {
     const s = await run();
     expect(Math.round(s.lowBound)).toBe(2_459_856);
-    expect(Math.round(s.highBound)).toBe(3_823_068);
+    expect(Math.round(s.highBound)).toBe(3_843_405);
     // -22.3% / +20.7%, against a fixed -9.6% / +9.6%.
     expect(s.lowBound / s.baseValuation - 1).toBeCloseTo(-0.223, 3);
-    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.207, 3);
+    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.214, 3);
     expect(s.lowBound).toBeLessThan(s.baseValuation * 0.904);
     expect(s.highBound).toBeGreaterThan(s.baseValuation * 1.096);
   });
@@ -96,49 +96,56 @@ describe("Sensitivity — the drivers", () => {
   });
 });
 
-describe("Sensitivity — the gap it must not hide", () => {
-  it("reports the benchmark as unavailable rather than inventing a range", async () => {
+describe("Sensitivity — the gap that has now been closed", () => {
+  it("varies the benchmark, which it could not do before the reference table", async () => {
     const s = await run();
     const bm = s.drivers.find((d) => d.key === "benchmark_pre_money")!;
-    expect(bm.basis).toBe("unavailable");
-    expect(bm.low).toBeNull();
-    expect(bm.high).toBeNull();
-    expect(bm.impact).toBeNull();
-    // Scorecard multiplies it and Checklist takes a fraction of a ceiling derived
-    // from it. There is no distribution until the benchmark reference table lands.
-    expect(bm.source).toMatch(/z8mad3quyr/);
-    expect(s.gaps.length).toBe(1);
+    // Was `unavailable` with null endpoints: no source published quartiles, so
+    // there was nothing to move. The quartiles are now derived from the one cell
+    // that publishes both a median and a mean -- honestly `modelled`, not sourced.
+    expect(bm.basis).toBe("modelled");
+    expect(bm.low).not.toBeNull();
+    expect(bm.high).not.toBeNull();
+    expect(bm.source).toMatch(/lognormal|derived/i);
   });
 
-  it("flags the band as understated, because a partial range is worse than none", async () => {
+  it("reports full coverage and drops the understated flag", async () => {
     const s = await run();
-    expect(s.understated).toBe(true);
-    // At expansion the benchmark drives only 14.3% of the weight, so the band is
-    // most of the story.
-    expect(s.coverage).toBeCloseTo(0.857, 3);
+    expect(s.coverage).toBe(1);
+    expect(s.understated).toBe(false);
+    expect(s.gaps).toHaveLength(0);
   });
 
-  it("goes NARROWER than the arbitrary band at development, which is the trap", async () => {
-    // The reason `understated` exists. At development, Scorecard and Checklist
-    // carry ~71% of the weight between them and the benchmark cannot be varied at
-    // all, so coverage collapses and the computed band is mostly silence.
+  it("makes the benchmark the top driver at development, where it carries 60%", async () => {
+    // It inverts the expansion ordering. At development Scorecard and Checklist
+    // carry 30% each, so the benchmark dominates everything else by a distance;
+    // at expansion they are 6% each and the discount rate leads instead.
     const s = await run("development");
-    expect(s.coverage).toBeCloseTo(0.286, 3);
-    expect(s.understated).toBe(true);
+    expect(s.drivers[0].key).toBe("benchmark_pre_money");
+    expect(s.drivers[0].impact).toBeCloseTo(0.879, 3);
+    expect(s.coverage).toBe(1);
+  });
 
-    // The high side comes out at +5.3%, NARROWER than the +9.6% it replaces.
-    // Rendering that as "the range" would be more misleading than the arbitrary
-    // band, not less -- which is why the flag is not a formality.
-    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.104, 3);
+  it("is honestly wide at development rather than reassuringly narrow", async () => {
+    // -41.3% / +87.9% against the flat +/-9.6% it replaces. That is not a
+    // regression: 60% of a development-stage valuation rests on a benchmark whose
+    // interquartile range spans 4.5x, and saying so is the point.
+    const s = await run("development");
+    expect(s.lowBound / s.baseValuation - 1).toBeCloseTo(-0.413, 3);
+    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.879, 3);
+    expect(s.lowBound).toBeLessThan(s.baseValuation * 0.904);
     expect(s.highBound).toBeGreaterThan(s.baseValuation * 1.096);
   });
 
-  it("puts the VC hurdle top of the table at development, not the discount rate", async () => {
-    // Worth asserting because it inverts the expansion ordering: at development the
-    // DCFs carry 12% each against 36%, so the rate matters far less, while VC's
-    // 16% is unchanged.
-    const s = await run("development");
-    expect(s.drivers[0].key).toBe("vc_required_roi");
-    expect(s.drivers.find((d) => d.key === "size_premium")!.impact).toBeLessThan(0.07);
+  it("still reports the benchmark as unavailable where it carries no weight", async () => {
+    // At growth and maturity Scorecard and Checklist are weighted zero, so the
+    // benchmark genuinely does not affect the answer and is reported that way
+    // rather than being varied pointlessly.
+    const s = await run("growth");
+    const bm = s.drivers.find((d) => d.key === "benchmark_pre_money")!;
+    expect(bm.basis).toBe("unavailable");
+    expect(bm.impact).toBeNull();
+    // And that is not an understatement, because it moves nothing.
+    expect(s.understated).toBe(false);
   });
 });

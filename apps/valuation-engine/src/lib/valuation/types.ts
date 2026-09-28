@@ -205,6 +205,13 @@ export interface ValuationReportOutput {
   weightedValuation: number;
   lowBound: number;
   highBound: number;
+  /**
+   * Where the bounds came from. `sensitivity` means they are the widest
+   * single-driver move each way, measured from this company's own inputs.
+   * `fixed` means the flat +/-9.6% fallback, used only when the sensitivity could
+   * not be computed -- do not present it as a measured range.
+   */
+  boundsBasis?: 'sensitivity' | 'fixed';
   perMethod: {
     method: ValuationMethodKey;
     valuation: number;

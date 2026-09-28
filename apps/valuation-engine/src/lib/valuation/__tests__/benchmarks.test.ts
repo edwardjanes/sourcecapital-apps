@@ -188,3 +188,84 @@ describe("Benchmark table — what it does to the valuation", () => {
     expect(r.benchmark).not.toBeNull();
   });
 });
+
+describe("Benchmark quartiles — derived, and labelled as such", () => {
+  it("calibrates the spread on the one cell that publishes a mean", async () => {
+    const { BENCHMARK_LOGNORMAL_SIGMA, benchmarkQuartiles, VALUATION_BENCHMARKS } =
+      await import("../benchmarks");
+    // mean/median = exp(sigma^2 / 2), from the BBB's £6.0m mean against its £3.2m
+    // median. Nothing else in the table publishes both.
+    expect(BENCHMARK_LOGNORMAL_SIGMA).toBeCloseTo(Math.sqrt(2 * Math.log(6.0 / 3.2)), 12);
+    expect(BENCHMARK_LOGNORMAL_SIGMA).toBeCloseTo(1.1213, 4);
+
+    const gb = VALUATION_BENCHMARKS.find((b) => b.geography === "GB")!;
+    const q = benchmarkQuartiles(gb);
+    expect(Math.round(q.p25)).toBe(1_502_115);
+    expect(q.median).toBe(3_200_000);
+    expect(Math.round(q.p75)).toBe(6_817_052);
+
+    // Reconstructs its own calibration: the implied mean is the published one.
+    const impliedMean = q.median * Math.exp(BENCHMARK_LOGNORMAL_SIGMA ** 2 / 2);
+    expect(impliedMean).toBeCloseTo(6_000_000, 6);
+  });
+
+  it("never claims the quartiles are sourced, because no cell publishes them", async () => {
+    const { benchmarkQuartiles, VALUATION_BENCHMARKS } = await import("../benchmarks");
+    for (const b of VALUATION_BENCHMARKS) {
+      const q = benchmarkQuartiles(b);
+      expect(q.basis, b.geography + b.stage).toBe("modelled");
+      expect(q.note).toMatch(/derived, not published/);
+      expect(q.p25).toBeLessThan(q.median);
+      expect(q.p75).toBeGreaterThan(q.median);
+    }
+  });
+
+  it("spans about 4.5x between the quartiles, which is why the band is wide", async () => {
+    const { benchmarkQuartiles, VALUATION_BENCHMARKS } = await import("../benchmarks");
+    const q = benchmarkQuartiles(VALUATION_BENCHMARKS.find((b) => b.geography === "GB")!);
+    expect(q.p75 / q.p25).toBeCloseTo(4.54, 2);
+  });
+});
+
+describe("The valuation band", () => {
+  it("falls back to the flat +/-9.6% when no sensitivity was computed", async () => {
+    const r = await computeValuation(
+      NORTHWIND_COMPANY as never, NORTHWIND_FINANCIALS as never,
+      { ...NORTHWIND_QUESTIONNAIRE } as never,
+      {
+        ...buildDefaultParameters(
+          NORTHWIND_COMPANY as never, NORTHWIND_FINANCIALS as never, NORTHWIND_BALANCE_SHEET as never
+        ),
+        comparables: [],
+      } as never
+    );
+    // computeValuation cannot measure a range -- doing so means recomputing itself
+    // once per driver endpoint, which would recurse -- so it emits the fallback
+    // and says so. The compute route replaces both.
+    expect(r.boundsBasis).toBe("fixed");
+    expect(r.lowBound).toBeCloseTo(r.weightedValuation * 0.904, 6);
+    expect(r.highBound).toBeCloseTo(r.weightedValuation * 1.096, 6);
+  });
+
+  it("is wider than the fixed band it replaces, in both directions", async () => {
+    const { computeSensitivity } = await import("../sensitivity");
+    const profile = NORTHWIND_COMPANY;
+    const parameters = {
+      ...buildDefaultParameters(
+        profile as never, NORTHWIND_FINANCIALS as never, NORTHWIND_BALANCE_SHEET as never
+      ),
+      comparables: [],
+    };
+    const s = await computeSensitivity({
+      profile: profile as never,
+      financials: NORTHWIND_FINANCIALS as never,
+      questionnaire: { ...NORTHWIND_QUESTIONNAIRE } as never,
+      parameters: parameters as never,
+    });
+    expect(s.lowBound).toBeLessThan(s.baseValuation * 0.904);
+    expect(s.highBound).toBeGreaterThan(s.baseValuation * 1.096);
+    // -22.3% / +21.4% at expansion, against a flat -9.6% / +9.6%.
+    expect(s.lowBound / s.baseValuation - 1).toBeCloseTo(-0.223, 3);
+    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.214, 3);
+  });
+});

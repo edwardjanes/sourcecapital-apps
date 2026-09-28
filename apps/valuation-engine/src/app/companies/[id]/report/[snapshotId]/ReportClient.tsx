@@ -401,19 +401,31 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
                 <div className="rpt-kpi-value">{fmt(report.weightedValuation)}</div>
               </div>
               <div className="rpt-kpi">
-                <div className="rpt-kpi-label">Indicative low</div>
+                <div className="rpt-kpi-label">Low</div>
                 <div className="rpt-kpi-value">{fmt(report.lowBound)}</div>
               </div>
               <div className="rpt-kpi">
-                <div className="rpt-kpi-label">Indicative high</div>
+                <div className="rpt-kpi-label">High</div>
                 <div className="rpt-kpi-value">{fmt(report.highBound)}</div>
               </div>
             </div>
             <div className="rpt-footnote">
-              The indicative band is a flat &plusmn;9.6% applied to the weighted figure. It is the
-              same width whatever the inputs, so it is a presentational range rather than a measured
-              one. For what actually moves this valuation, see{' '}
-              <strong>What moves this number</strong>.
+              {report.boundsBasis === 'sensitivity' ? (
+                <>
+                  The range is measured from this company&rsquo;s own inputs: it is the furthest the
+                  valuation moves when any single assumption is taken to either end of its
+                  documented range. It is not a confidence interval, and the assumptions are not
+                  additive &mdash; each is moved on its own. See{' '}
+                  <strong>What moves this number</strong> for which one matters most.
+                </>
+              ) : (
+                <>
+                  This band is a flat &plusmn;9.6% applied to the weighted figure, used because a
+                  measured range could not be computed for this valuation. It is the same width
+                  whatever the inputs, so treat it as presentational rather than as a measured
+                  range.
+                </>
+              )}
             </div>
 
             <div className="rpt-section-h">Method Comparison</div>
