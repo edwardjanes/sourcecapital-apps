@@ -30,7 +30,7 @@ const run = async (stage = "expansion") => {
 describe("Sensitivity — the drivers", () => {
   it("reproduces the locked baseline as its base case", async () => {
     const s = await run();
-    expect(Math.round(s.baseValuation)).toBe(3_896_345);
+    expect(Math.round(s.baseValuation)).toBe(3_166_356);
   });
 
   it("sorts drivers by impact, so the report leads with what matters", async () => {
@@ -40,7 +40,7 @@ describe("Sensitivity — the drivers", () => {
     for (let i = 1; i < moved.length; i++) expect(moved[i]).toBeLessThanOrEqual(moved[i - 1]);
     // At expansion the discount rate leads, at 18.1%.
     expect(s.drivers[0].key).toBe("size_premium");
-    expect(s.drivers[0].impact).toBeCloseTo(0.181, 3);
+    expect(s.drivers[0].impact).toBeCloseTo(0.223, 3);
   });
 
   it("labels each range by where it came from", async () => {
@@ -67,7 +67,7 @@ describe("Sensitivity — the drivers", () => {
     expect(vc.low!.weightedValuation).toBeLessThan(vc.high!.weightedValuation);
     // The low end of the ANSWER comes from the low end of the DRIVER here.
     expect(vc.low!.value).toBeCloseTo(0.35, 10);
-    expect(Math.round(vc.low!.weightedValuation)).toBe(3_377_907);
+    expect(Math.round(vc.low!.weightedValuation)).toBe(2_764_717);
     // And the high end is simply the base, because a higher hurdle leaves the
     // method excluded and changes nothing.
     expect(Math.round(vc.high!.weightedValuation)).toBe(Math.round(s.baseValuation));
@@ -80,11 +80,11 @@ describe("Sensitivity — the drivers", () => {
 
   it("produces a range wider than the arbitrary band it replaces, at expansion", async () => {
     const s = await run();
-    expect(Math.round(s.lowBound)).toBe(3_189_845);
-    expect(Math.round(s.highBound)).toBe(4_436_258);
-    // -18.1% / +13.9%, against a fixed -9.6% / +9.6%.
-    expect(s.lowBound / s.baseValuation - 1).toBeCloseTo(-0.181, 3);
-    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.139, 3);
+    expect(Math.round(s.lowBound)).toBe(2_459_856);
+    expect(Math.round(s.highBound)).toBe(3_823_068);
+    // -22.3% / +20.7%, against a fixed -9.6% / +9.6%.
+    expect(s.lowBound / s.baseValuation - 1).toBeCloseTo(-0.223, 3);
+    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.207, 3);
     expect(s.lowBound).toBeLessThan(s.baseValuation * 0.904);
     expect(s.highBound).toBeGreaterThan(s.baseValuation * 1.096);
   });
@@ -129,8 +129,8 @@ describe("Sensitivity — the gap it must not hide", () => {
     // The high side comes out at +5.3%, NARROWER than the +9.6% it replaces.
     // Rendering that as "the range" would be more misleading than the arbitrary
     // band, not less -- which is why the flag is not a formality.
-    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.053, 3);
-    expect(s.highBound).toBeLessThan(s.baseValuation * 1.096);
+    expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.104, 3);
+    expect(s.highBound).toBeGreaterThan(s.baseValuation * 1.096);
   });
 
   it("puts the VC hurdle top of the table at development, not the discount rate", async () => {
@@ -139,6 +139,6 @@ describe("Sensitivity — the gap it must not hide", () => {
     // 16% is unchanged.
     const s = await run("development");
     expect(s.drivers[0].key).toBe("vc_required_roi");
-    expect(s.drivers.find((d) => d.key === "size_premium")!.impact).toBeLessThan(0.05);
+    expect(s.drivers.find((d) => d.key === "size_premium")!.impact).toBeLessThan(0.07);
   });
 });

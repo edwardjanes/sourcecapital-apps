@@ -328,16 +328,54 @@ export const NORTHWIND_QUESTIONNAIRE = {
  * penalty without reversing it: blank vs SaaS is -23.4%, against -24.9% before.
  * The z8mad3qv1e principle -- a fallback must never pay -- still holds, so the
  * honest whole-market figure was kept rather than inflated to preserve a margin.
+ *
+ * UPDATED AN EIGHTH TIME, 28 Sep 2026, for the BENCHMARK REFERENCE TABLE -- the
+ * largest single change of the model pass, and the one the rest was waiting on.
+ *
+ * `COUNTRIES[x].avgSeedPreMoney` was one figure per country used at EVERY stage,
+ * and it was not even the same KIND of figure across countries. Checked against
+ * the published sources rather than inferred from the field name:
+ *
+ *   US  $7,700,000  was EXACTLY PitchBook-NVCA's PRE-SEED median (Q3 2025).
+ *                   A median -- of the wrong stage. Their seed median is $15.8M.
+ *   GB  £7,100,000  was close to the BBB seed MEAN of £6.0m.
+ *                   The right stage -- but the wrong statistic. Median is £3.2m.
+ *
+ * So correcting both to a seed median roughly DOUBLES the US benchmark and roughly
+ * HALVES the UK one, and AUDIT-01/02's "a mean where the method requires a median"
+ * was right for GB and wrong for the US. Both audits are corrected.
+ *
+ *   benchmark    7,100,000 -> 3,200,000   (BBB seed median, 2025)
+ *   scorecard    8,679,750 -> 3,912,000   -54.9%
+ *   checklist    9,925,875 -> 4,473,780   -54.9%
+ *   vc                   0 ->         0    excluded either way
+ *   dcf_ltg      1,901,554 -> 1,901,554     0.00%
+ *   dcf_multiple 4,088,980 -> 4,088,980     0.00%
+ *   weighted     3,896,345 -> 3,166,356   -18.7%
+ *
+ * THIS IS THE RESULT THE WHOLE MODEL PASS WAS CHASING. The gap that started it --
+ * Scorecard and Checklist at three to five times the cash-flow methods -- is gone.
+ * 3,912,000 and 4,473,780 now sit alongside 1,901,554 and 4,088,980: no longer
+ * outliers, but in the same conversation.
+ *
+ * Northwind is `expansion`, and the benchmark stage is capped at `seed` for every
+ * stage above `idea`. That is not a shortcut. Scorecard and Checklist are
+ * early-stage methods by construction, and feeding them a Series A benchmark does
+ * not make them more accurate for a scaled company -- it uses them outside their
+ * domain. Mapping `expansion` to `series_a`, as the spec originally proposed, sent
+ * this company to a global Series A cell and produced a Scorecard of £34,230,000
+ * on £900k of revenue. Relevance at later stages is already handled, better, by
+ * the stage weights falling to 6% and then to zero.
  */
 export const NORTHWIND_BASELINE = {
-	weightedValuation: 3896344.908771083,
-	lowBound: 3522295.7975290595,
-	highBound: 4270394.020013108,
+	weightedValuation: 3166355.9801996546,
+	lowBound: 2862385.8061004877,
+	highBound: 3470326.1542988215,
 	discountRate: 0.162128,
 	currency: 'GBP',
 	perMethod: [
-		{ method: 'scorecard', weight: 0.06, valuation: 8679750 },
-		{ method: 'checklist', weight: 0.06, valuation: 9925875 },
+		{ method: 'scorecard', weight: 0.06, valuation: 3912000 },
+		{ method: 'checklist', weight: 0.06, valuation: 4473780 },
 		{ method: 'vc', weight: 0.16, valuation: 0 },
 		{ method: 'dcf_ltg', weight: 0.36, valuation: 1901554 },
 		{ method: 'dcf_multiple', weight: 0.36, valuation: 4088980 },

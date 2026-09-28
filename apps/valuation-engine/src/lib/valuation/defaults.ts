@@ -14,9 +14,15 @@ import {
   SURVIVAL_RATES,
   SURVIVAL_RATES_BY_COUNTRY,
   resolveSizePremium,
+  getCurrencyForCountry,
   resolveCountryCode,
 } from './referenceData';
 import { deriveFcfeByYear } from './fcf';
+import {
+  resolveBenchmark,
+  CHECKLIST_MAX_RATIO,
+  type BenchmarkResolution,
+} from './benchmarks';
 
 export function buildDefaultParameters(
   profile: CompanyProfile,
@@ -74,6 +80,24 @@ export function buildDefaultParameters(
     fcfeByYear.find((f) => f.yearOffset === 5) || fcfeByYear[fcfeByYear.length - 1];
   const terminalEbitda = terminalFcfeYear?.ebitda ?? 0;
 
+  // Benchmark pre-money valuation, by geography and stage.
+  //
+  // Replaces COUNTRIES[x].avgSeedPreMoney, which was one figure used at every
+  // stage -- and which was not even the same KIND of figure across countries: the
+  // US value was PitchBook's PRE-SEED median while the UK value was close to the
+  // BBB seed MEAN. See benchmarks.ts. The resolution is carried through to the
+  // output so the report can say which rung it landed on rather than presenting a
+  // substituted figure as if it were the company's own market.
+  const benchmark = resolveBenchmark({
+    countryCode: countryKey,
+    stage: profile.stage,
+    currency: getCurrencyForCountry(profile.country),
+  });
+  // ZERO when nothing resolves, NOT a fallback to the old country figure. A
+  // Scorecard computed against a benchmark nobody published is the defect this
+  // table replaces, so the methods are excluded instead -- see compute.ts.
+  const benchmarkValue = benchmark.benchmark?.preMoney.median ?? 0;
+
   // Discount rate: CAPM plus a size premium.
   //
   // The size premium was added 27 Sep 2026. Bare CAPM is a mature-listed-company
@@ -100,12 +124,12 @@ export function buildDefaultParameters(
 
     // Scorecard parameters
     scorecard: {
-      average_pre_money_valuation: countryData.avg_seed_pre_money,
+      average_pre_money_valuation: benchmarkValue,
     },
 
     // Checklist parameters
     checklist: {
-      max_valuation: countryData.checklist_max_valuation,
+      max_valuation: benchmarkValue * CHECKLIST_MAX_RATIO,
     },
 
     // VC Method parameters
@@ -146,6 +170,8 @@ export function buildDefaultParameters(
       last_year_metric: lastYearRevenue,
       metric_type: 'revenue',
     },
+
+    benchmark_resolution: benchmark,
 
     discount_rate_build_up: {
       riskFreeRate: countryData.risk_free_rate,
