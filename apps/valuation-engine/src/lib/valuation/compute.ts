@@ -156,6 +156,15 @@ export async function computeValuation(
     };
   }
 
+  if (parameters.benchmark_resolution && parameters.benchmark_resolution.rung === 'none') {
+    const reason =
+      `${parameters.benchmark_resolution.note} Both methods price a company as a fraction of, or a ` +
+      `multiple against, that benchmark, so neither can be applied here. They are excluded rather ` +
+      `than run against a figure nobody published.`;
+    applicability.scorecard = { applicable: false, reason };
+    applicability.checklist = { applicable: false, reason };
+  }
+
   if (comparables.length === 0) {
     applicability.multiples = {
       applicable: false,
@@ -194,6 +203,7 @@ export async function computeValuation(
     ltgTerminalValue,
     discountRate,
     discountRateBuildUp: parameters.discount_rate_build_up,
+    benchmarkResolution: parameters.benchmark_resolution,
     fcfeByYear,
     generatedAt: new Date().toISOString(),
   };

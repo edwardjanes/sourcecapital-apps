@@ -410,7 +410,7 @@ describe("DCF-LTG — the Gordon-growth spread", () => {
     const gb = await run("United Kingdom", "SaaS");
     expect(gb.discountRate).toBeCloseTo(0.162128, 6);
     expect(gb.g).toBe(0.025);
-    expect(gb.weighted).toBe(3_896_345);
+    expect(gb.weighted).toBe(3_166_356);
   });
 });
 
@@ -769,7 +769,7 @@ describe("DCF-LTG — the spread guardrail (shipped 27 Sep 2026)", () => {
     expect(r.ltgTerminalValue?.growthRateUsed).toBe(0.025);
     // The locked baseline, which the guardrail itself never moved -- it changed
     // only when the size premium and the terminal normalisation landed.
-    expect(Math.round(r.weightedValuation)).toBe(3_896_345);
+    expect(Math.round(r.weightedValuation)).toBe(3_166_356);
   });
 });
 
@@ -906,7 +906,7 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     return { multiple: m("dcf_multiple"), vc: m("vc"), ltg: m("dcf_ltg"), weighted: Math.round(r.weightedValuation) };
   };
 
-  it("costs 23.4% on the composite, where it used to pay 36.8%", async () => {
+  it("costs 28.8% on the composite, where it used to pay 36.8%", async () => {
     // MEASURED against production 27 Sep 2026: 7 of the 23 snapshots in
     // valuation_snapshots belong to companies with a BLANK industry (4 distinct
     // companies), which resolves to INDUSTRIES.default. The other 16 are "SaaS".
@@ -918,9 +918,9 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     const saas = await runIndustry("SaaS");
     const blank = await runIndustry("");
 
-    expect(saas.weighted).toBe(3_896_345);
-    expect(blank.weighted).toBe(2_986_122);
-    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.234, 3);
+    expect(saas.weighted).toBe(3_166_356);
+    expect(blank.weighted).toBe(2_256_133);
+    expect(blank.weighted / saas.weighted - 1).toBeCloseTo(-0.2875, 4);
 
     // The penalty weakened slightly when the betas were re-sourced: `default`
     // moved 1.05 -> 0.99, BELOW the median named sector of 1.11, so a blank

@@ -1,3 +1,4 @@
+import type { BenchmarkResolution } from './benchmarks';
 export type CompanyStage = 'idea'|'development'|'startup'|'expansion'|'growth'|'maturity';
 export type MetricType = 'revenue'|'ebitda';
 
@@ -199,6 +200,8 @@ export interface ValuationReportOutput {
   ltgTerminalValue?: LtgTerminalValue;
   /** The CAPM-plus-size-premium build-up behind `discountRate`. */
   discountRateBuildUp?: DiscountRateBuildUp;
+  /** Which benchmark cell drove Scorecard and Checklist, and how specific it was. */
+  benchmarkResolution?: BenchmarkResolution;
   weightedValuation: number;
   lowBound: number;
   highBound: number;
@@ -326,4 +329,6 @@ export interface UpdatedValuationParameters extends Omit<ValuationParameters, 'm
    * the rate should be taken at face value.
    */
   discount_rate_build_up?: DiscountRateBuildUp;
+  /** Which benchmark cell drove Scorecard and Checklist, and how specific it was. */
+  benchmark_resolution?: BenchmarkResolution;
 }
