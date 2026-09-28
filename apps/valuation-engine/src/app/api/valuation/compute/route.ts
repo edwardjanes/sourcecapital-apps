@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { computeValuation } from '@/lib/valuation/compute';
+import { computeSensitivity } from '@/lib/valuation/sensitivity';
 import { buildDefaultParameters } from '@/lib/valuation/defaults';
 import { validateWizardData, hasBlockingIssues } from '@/lib/valuation/validation';
 import { renderAndUploadReportPdf } from '@/lib/valuation/pdf';
@@ -253,10 +254,34 @@ export async function POST(request: NextRequest) {
       paramsWithWeights
     );
 
+    // Sensitivity of the composite to the inputs that actually drive it. All six
+    // method specs ask for one and the engine had only a fixed +/-9.6% band, which
+    // is the same width whatever the inputs. Computed here rather than inside
+    // computeValuation() because it re-runs that function per driver endpoint.
+    //
+    // Failure is non-fatal: a valuation without a sensitivity is still a
+    // valuation, and this must never be the reason a run 500s.
+    let sensitivity: Awaited<ReturnType<typeof computeSensitivity>> | null = null;
+    try {
+      sensitivity = await computeSensitivity({
+        profile: {
+          name: company.name!,
+          country: company.country!,
+          industry: company.industry!,
+          stage: company.stage!,
+        } as never,
+        financials: (financials || []) as never,
+        questionnaire: enrichedQuestionnaire as never,
+        parameters: paramsWithWeights as never,
+      });
+    } catch (e) {
+      console.error('[valuation/compute] sensitivity failed, continuing without it', e);
+    }
+
     // computeValuation() itself stays currency-agnostic (see referenceData.ts's
     // CURRENCY_BY_COUNTRY comment) -- the label is attached here, once, to the
     // report object that gets persisted and returned.
-    const report = { ...reportRaw, currency, countryDataTier };
+    const report = { ...reportRaw, currency, countryDataTier, sensitivity };
 
     // created_by is nullable as of 006_valuation_snapshots_created_by_nullable.sql --
     // there's no auth.users row for an n8n-triggered run, so it's left unset (null)
