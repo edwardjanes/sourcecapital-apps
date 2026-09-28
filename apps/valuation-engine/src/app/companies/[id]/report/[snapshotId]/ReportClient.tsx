@@ -472,6 +472,20 @@ export default function ReportClient({ snapshot, company }: ReportClientProps) {
               </table>
             </div>
 
+            {report.industryResolution && !report.industryResolution.matched ? (
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">Sector Not Recognised</div>
+                <div className="rpt-callout">{report.industryResolution.note}</div>
+              </div>
+            ) : null}
+
+            {report.benchmarkResolution?.substituted ? (
+              <div className="rpt-section-block">
+                <div className="rpt-section-h">Benchmark Substituted</div>
+                <div className="rpt-callout">{report.benchmarkResolution.note}</div>
+              </div>
+            ) : null}
+
             {(report.perMethod || []).some((m: any) => m.applicable === false) ? (
               <div className="rpt-section-block">
                 <div className="rpt-section-h">Methods Not Applied</div>

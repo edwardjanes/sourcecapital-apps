@@ -14,6 +14,7 @@ import {
   SURVIVAL_RATES,
   SURVIVAL_RATES_BY_COUNTRY,
   resolveSizePremium,
+  resolveIndustry,
   getCurrencyForCountry,
   resolveCountryCode,
 } from './referenceData';
@@ -43,11 +44,12 @@ export function buildDefaultParameters(
   // Use country-specific survival rates if available, fall back to global default
   const survivalRates = SURVIVAL_RATES_BY_COUNTRY[countryKey] || SURVIVAL_RATES;
 
-  // Look up industry data from reference data
-  const industryKey = (Object.keys(INDUSTRIES) as (keyof typeof INDUSTRIES)[]).find(
-    (key) => key.toLowerCase().replace(/_/g, '').replace(' ', '') ===
-             (profile.industry || '').toLowerCase().replace(/_/g, '').replace(/\s/g, '')
-  ) || 'default';
+  // Resolve the industry, and record HOW it resolved. The previous matcher
+  // stripped underscores and spaces but not hyphens or slashes, so the portal's
+  // own labels ("E-commerce", "AI / ML") would not match their own keys -- and a
+  // miss fell through to `default` silently. See resolveIndustry.
+  const industry = resolveIndustry(profile.industry);
+  const industryKey = industry.key;
   const industryRef = INDUSTRIES[industryKey];
   const industryData = {
     name: profile.industry,
@@ -172,6 +174,7 @@ export function buildDefaultParameters(
     },
 
     benchmark_resolution: benchmark,
+    industry_resolution: industry,
 
     discount_rate_build_up: {
       riskFreeRate: countryData.risk_free_rate,

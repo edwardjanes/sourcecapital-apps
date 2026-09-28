@@ -941,13 +941,25 @@ describe("DCF-multiple — leaving the industry blank now costs", () => {
     expect(blank.ltg).toBeGreaterThan(saas.ltg);
   });
 
-  it("matches an unknown industry string to the same fallback", async () => {
-    // The matcher normalises case, underscores and spaces, so anything it does
-    // not recognise -- "Software", "B2B SaaS", "Enterprise Software" -- lands on
-    // `default` rather than on the nearest sector.
-    const software = await runIndustry("Software");
+  it("no longer sends a recognisable sector name to the fallback", async () => {
+    // WAS THE BUG. The matcher lowercased and stripped underscores and spaces but
+    // NOT hyphens or slashes, and had no aliases -- so "Software", "B2B SaaS" and
+    // even the portal's own labels "E-commerce" and "AI / ML" all missed and fell
+    // through to whole-market figures, silently.
+    const saas = await runIndustry("SaaS");
+    for (const name of ["Software", "B2B SaaS", "Enterprise Software", "Cybersecurity"]) {
+      const r = await runIndustry(name);
+      expect(r.weighted, name).toBe(saas.weighted);
+    }
+  });
+
+  it("still falls back for a sector it genuinely has no data for, and says so", async () => {
+    // The fallback is right here -- there is no reference data for pet grooming --
+    // but it is now visible rather than silent.
     const blank = await runIndustry("");
-    expect(software.weighted).toBe(blank.weighted);
+    const unknown = await runIndustry("Pet Grooming");
+    expect(unknown.weighted).toBe(blank.weighted);
+    expect(unknown.weighted).toBe(2_256_133);
   });
 });
 

@@ -212,6 +212,7 @@ export async function computeValuation(
     discountRate,
     discountRateBuildUp: parameters.discount_rate_build_up,
     benchmarkResolution: parameters.benchmark_resolution,
+    industryResolution: parameters.industry_resolution,
     fcfeByYear,
     generatedAt: new Date().toISOString(),
   };

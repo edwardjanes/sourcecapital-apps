@@ -269,3 +269,79 @@ describe("The valuation band", () => {
     expect(s.highBound / s.baseValuation - 1).toBeCloseTo(0.214, 3);
   });
 });
+
+describe("Industry resolution", () => {
+  it("matches the portal's own display labels, which the old matcher did not", async () => {
+    const { resolveIndustry } = await import("../referenceData");
+    // The previous matcher stripped underscores and spaces but not hyphens or
+    // slashes, so "E-commerce" missed `Ecommerce` and "AI / ML" missed `AI_ML`.
+    // The portal happens to send values not labels, so it was safe; any other
+    // caller sending what a human would type was not.
+    expect(resolveIndustry("E-commerce").key).toBe("Ecommerce");
+    expect(resolveIndustry("E-commerce").match).toBe("exact");
+    expect(resolveIndustry("AI / ML").key).toBe("AI_ML");
+    expect(resolveIndustry("AI / ML").match).toBe("exact");
+  });
+
+  it("reads common real-world names as their sector", async () => {
+    const { resolveIndustry } = await import("../referenceData");
+    const cases: Array<[string, string]> = [
+      ["Software", "SaaS"], ["B2B SaaS", "SaaS"], ["Enterprise Software", "SaaS"],
+      ["Cybersecurity", "SaaS"], ["Machine Learning", "AI_ML"], ["Generative AI", "AI_ML"],
+      ["Payments", "Fintech"], ["Insurtech", "Fintech"], ["Digital Health", "Healthtech"],
+      ["Telehealth", "Healthtech"], ["Life Sciences", "Biotech"], ["Climate Tech", "Cleantech"],
+      ["Real Estate", "PropTech"], ["Video Games", "Gaming"], ["Supply Chain", "Logistics"],
+      ["Quantum Computing", "Deeptech"], ["Social Media", "Media"],
+    ];
+    for (const [input, expected] of cases) {
+      const r = resolveIndustry(input);
+      expect(r.key, input).toBe(expected);
+      expect(r.match, input).toBe("alias");
+      expect(r.matched, input).toBe(true);
+    }
+  });
+
+  it("falls back visibly for a sector it has no data for", async () => {
+    const { resolveIndustry } = await import("../referenceData");
+    const r = resolveIndustry("Pet Grooming");
+    expect(r.key).toBe("default");
+    expect(r.match).toBe("fallback");
+    expect(r.matched).toBe(false);
+    // Quotes the input back, so the report can name what it did not recognise.
+    expect(r.note).toContain("Pet Grooming");
+    expect(r.note).toMatch(/whole-market figures/);
+  });
+
+  it("does not guess at terms that span sectors", async () => {
+    const { resolveIndustry } = await import("../referenceData");
+    // Deliberately absent from the alias table: placing these by guesswork would
+    // be worse than falling back visibly.
+    for (const vague of ["Platform", "Tech", "Technology", "Consumer", "B2B"]) {
+      expect(resolveIndustry(vague).matched, vague).toBe(false);
+    }
+  });
+
+  it("handles a blank industry without pretending it matched", async () => {
+    const { resolveIndustry } = await import("../referenceData");
+    for (const blank of ["", "   ", null, undefined]) {
+      const r = resolveIndustry(blank as never);
+      expect(r.key).toBe("default");
+      expect(r.matched).toBe(false);
+      expect(r.note).toMatch(/No industry was given/);
+    }
+  });
+
+  it("threads the resolution to the output for the report", async () => {
+    const profile = { ...NORTHWIND_COMPANY, industry: "Enterprise Software" };
+    const d = buildDefaultParameters(
+      profile as never, NORTHWIND_FINANCIALS as never, NORTHWIND_BALANCE_SHEET as never
+    );
+    const r = await computeValuation(
+      profile as never, NORTHWIND_FINANCIALS as never,
+      { ...NORTHWIND_QUESTIONNAIRE } as never, { ...d, comparables: [] } as never
+    );
+    expect(r.industryResolution!.key).toBe("SaaS");
+    expect(r.industryResolution!.match).toBe("alias");
+    expect(r.industryResolution!.note).toContain("Enterprise Software");
+  });
+});

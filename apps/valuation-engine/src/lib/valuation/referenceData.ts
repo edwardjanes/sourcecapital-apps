@@ -349,6 +349,109 @@ export const INDUSTRIES = Object.fromEntries(
  * deliberately against stage, time to exit, dilution, capital intensity and fund
  * economics. This table is a defensible published baseline, not that build-up.
  */
+/**
+ * Resolve a free-text industry string to an INDUSTRIES key, and say how.
+ *
+ * WHY THIS IS NOT JUST A LOOKUP. The previous matcher lowercased and stripped
+ * underscores and spaces, but NOT hyphens or slashes -- so the portal's own
+ * display labels would miss their own keys: "E-commerce" did not match
+ * `Ecommerce`, and "AI / ML" did not match `AI_ML`. The portal happens to send
+ * values rather than labels, so it was safe; any other caller sending the label a
+ * human would type was not.
+ *
+ * And a miss was silent. It fell through to `default`, which until 27 Sep 2026
+ * was RICHER than SaaS on every axis, so an unrecognised industry paid a bonus.
+ * `default` is now the conservative whole-market figure, so a miss costs about a
+ * quarter of the valuation instead -- better, but still wrong and still silent.
+ * Hence the resolution object: the caller and the report can both see that a
+ * string was not recognised.
+ */
+export type IndustryMatch = 'exact' | 'alias' | 'fallback';
+
+export interface IndustryResolution {
+  key: keyof typeof INDUSTRIES;
+  /** What the caller sent, for the report to quote back. */
+  input: string;
+  match: IndustryMatch;
+  matched: boolean;
+  note: string;
+}
+
+/** Lowercase and strip everything that is not a letter or digit. */
+const normaliseIndustry = (raw: string) => raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Common real-world names that are not the reference key. Only confident
+ * mappings: where a term spans sectors (say "platform", or "tech"), it is left
+ * out so the company falls back visibly rather than being placed by guesswork.
+ */
+const INDUSTRY_ALIASES: Record<string, keyof typeof INDUSTRIES> = {
+  software: 'SaaS', b2bsaas: 'SaaS', b2csaas: 'SaaS', enterprisesoftware: 'SaaS',
+  saas: 'SaaS', cloudsoftware: 'SaaS', softwareasaservice: 'SaaS',
+  ai: 'AI_ML', aiml: 'AI_ML', artificialintelligence: 'AI_ML', machinelearning: 'AI_ML',
+  ml: 'AI_ML', genai: 'AI_ML', generativeai: 'AI_ML',
+  payments: 'Fintech', banking: 'Fintech', insurtech: 'Fintech', insurance: 'Fintech',
+  financialservices: 'Fintech', lending: 'Fintech', wealthtech: 'Fintech',
+  ecommerce: 'Ecommerce', retail: 'Ecommerce', dtc: 'Ecommerce', d2c: 'Ecommerce',
+  onlineretail: 'Ecommerce',
+  healthtech: 'Healthtech', digitalhealth: 'Healthtech', healthcare: 'Healthtech',
+  medtech: 'Healthtech', health: 'Healthtech',
+  biotech: 'Biotech', lifesciences: 'Biotech', pharma: 'Biotech', pharmaceuticals: 'Biotech',
+  cleantech: 'Cleantech', climatetech: 'Cleantech', greentech: 'Cleantech',
+  renewables: 'Cleantech', renewableenergy: 'Cleantech',
+  proptech: 'PropTech', realestate: 'PropTech', property: 'PropTech',
+  edtech: 'EdTech', education: 'EdTech', elearning: 'EdTech',
+  gaming: 'Gaming', games: 'Gaming', videogames: 'Gaming', mobilegaming: 'Gaming',
+  logistics: 'Logistics', supplychain: 'Logistics', freight: 'Logistics',
+  transport: 'Logistics', transportation: 'Logistics',
+  media: 'Media', publishing: 'Media', advertising: 'Media', adtech: 'Media',
+  hardware: 'Hardware', iot: 'Hardware', robotics: 'Hardware', devices: 'Hardware',
+  deeptech: 'Deeptech', semiconductors: 'Deeptech', quantum: 'Deeptech',
+  mobileapp: 'MobileApp', mobile: 'MobileApp', app: 'MobileApp', consumerapp: 'MobileApp',
+  marketplace: 'Marketplace', marketplaces: 'Marketplace', onlinemarketplace: 'Marketplace',
+  // Software-shaped verticals. Each of these is overwhelmingly sold as software,
+  // so SaaS is the right reference set even though the vertical differs.
+  cybersecurity: 'SaaS', cybersecuritysoftware: 'SaaS', devtools: 'SaaS',
+  developertools: 'SaaS', hrtech: 'SaaS', legaltech: 'SaaS', martech: 'SaaS',
+  salestech: 'SaaS', regtech: 'SaaS', dataanalytics: 'SaaS',
+  quantumcomputing: 'Deeptech', spacetech: 'Deeptech', space: 'Deeptech',
+  manufacturing: 'Hardware', advancedmanufacturing: 'Hardware', threedprinting: 'Hardware',
+  telehealth: 'Healthtech', mobility: 'Logistics', delivery: 'Logistics',
+  socialmedia: 'Media', streaming: 'Media',
+};
+
+export function resolveIndustry(raw: string | undefined | null): IndustryResolution {
+  const input = (raw ?? '').trim();
+  const n = normaliseIndustry(input);
+
+  const exact = (Object.keys(INDUSTRIES) as Array<keyof typeof INDUSTRIES>).find(
+    (key) => key !== 'default' && normaliseIndustry(key) === n
+  );
+  if (exact) {
+    return { key: exact, input, match: 'exact', matched: true, note: `Matched the ${exact} sector.` };
+  }
+
+  const alias = n ? INDUSTRY_ALIASES[n] : undefined;
+  if (alias) {
+    return {
+      key: alias, input, match: 'alias', matched: true,
+      note: `Read "${input}" as the ${alias} sector.`,
+    };
+  }
+
+  return {
+    key: 'default',
+    input,
+    match: 'fallback',
+    matched: false,
+    note: input
+      ? `"${input}" is not one of the sectors this engine holds reference data for, so whole-market ` +
+        `figures were used for the beta and the exit multiples. A recognised sector would give a ` +
+        `sharper answer.`
+      : 'No industry was given, so whole-market figures were used for the beta and the exit multiples.',
+  };
+}
+
 export const VC_REQUIRED_ROI = {
   idea: 0.70,
   development: 0.60,
