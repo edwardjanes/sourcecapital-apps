@@ -1,23 +1,27 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 
 const GREEN = "#03fb83";
 const LOGO = "https://raw.githubusercontent.com/edwardjanes/source-capital/0147b27fad891686f67559992e43319411f07ba4/logo.png";
 
 function ThankYouInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const submissionId = searchParams.get("submission_id");
   const [unlocked, setUnlocked] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (unlocked) {
-      posthog.capture("upgrade_purchased", { submission_id: submissionId });
-    }
-  }, [unlocked, submissionId]);
+    if (!unlocked) return;
+    posthog.capture("upgrade_purchased", { submission_id: submissionId });
+    // Take them to the report they just paid for; the confirmation above stays
+    // on screen briefly so the purchase is acknowledged.
+    const timer = setTimeout(() => router.push(`/investment-score/results/${submissionId}`), 1800);
+    return () => clearTimeout(timer);
+  }, [unlocked, submissionId, router]);
 
   // Poll until the webhook has marked the submission as paid
   useEffect(() => {
@@ -72,7 +76,7 @@ function ThankYouInner() {
               <div style={{ width: "22px", height: "22px", borderRadius: "50%", background: "rgba(3,251,131,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 5.5l3 3 4-4" stroke={GREEN} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
-              <p style={{ fontSize: "14px", color: GREEN, fontWeight: 600 }}>Payment confirmed — report unlocked</p>
+              <p style={{ fontSize: "14px", color: GREEN, fontWeight: 600 }}>Payment confirmed — opening your report…</p>
             </div>
           ) : (
             <p style={{ fontSize: "14px", color: "#9CA3AF" }}>Payment received. Your report will unlock within a few seconds.</p>
@@ -81,7 +85,7 @@ function ThankYouInner() {
 
         {submissionId && (
           <a
-            href={`/results/${submissionId}`}
+            href={`/investment-score/results/${submissionId}`}
             style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "14px 32px", background: GREEN, borderRadius: "10px", color: "#000", fontSize: "15px", fontWeight: 700, textDecoration: "none", marginBottom: "16px" }}
           >
             View Full Report
