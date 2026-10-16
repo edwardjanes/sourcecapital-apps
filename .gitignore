@@ -19,6 +19,7 @@ node_modules/
 *.pdf
 *.xlsx
 package-lock.json
+.playwright-mcp/
 
 # build cache
 apps/valuation-engine/tsconfig.tsbuildinfo
