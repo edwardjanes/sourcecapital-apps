@@ -116,7 +116,7 @@ export default function DashboardClient({
     }
   }
 
-  const whopUrl = `https://whop.com/checkout/${process.env.NEXT_PUBLIC_WHOP_PLAN_ID ?? "plan_AUP8u87FOYnEZ"}`;
+  const whopUrl = "/api/whop/checkout?plan=deck";
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT_SANS }}>

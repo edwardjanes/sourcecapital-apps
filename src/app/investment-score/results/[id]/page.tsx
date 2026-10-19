@@ -32,13 +32,11 @@ const MUTED = "#6B7280";
 const LOGO = "https://raw.githubusercontent.com/edwardjanes/source-capital/0147b27fad891686f67559992e43319411f07ba4/logo.png";
 
 function checkoutUrl(submissionId: string): string {
-  const planId = process.env.NEXT_PUBLIC_WHOP_PLAN_ID ?? "plan_AUP8u87FOYnEZ";
-  return `https://whop.com/checkout/${planId}/?${new URLSearchParams({ "metadata[submission_id]": submissionId }).toString()}`;
+  return `/api/whop/checkout?submission_id=${encodeURIComponent(submissionId)}&plan=deck`;
 }
 
 function fullCheckoutUrl(submissionId: string): string {
-  const planId = process.env.NEXT_PUBLIC_WHOP_PLAN_ID_PRO ?? "plan_7LlelIvBnFah9";
-  return `https://whop.com/checkout/${planId}/?${new URLSearchParams({ "metadata[submission_id]": submissionId }).toString()}`;
+  return `/api/whop/checkout?submission_id=${encodeURIComponent(submissionId)}&plan=pro`;
 }
 
 function isExpired(createdAt: string): boolean {
