@@ -145,10 +145,12 @@
 - Whop webhook integration for subscription state
 
 ### 5. **PostHog Analytics Funnel**
+- **Which project**: events land in PostHog project **410172** (`us.posthog.com/project/410172`) in the **"Source Capital"** organisation — key `phc_q6hE8Fni...`, host `https://us.i.posthog.com`. Project **639265** belongs to a *different* org ("Freehold Index") and holds that product's events only; looking there is why the deck funnel once appeared to be missing entirely.
 - **deck_submitted** (upload/page.tsx): Fired after successful PDF upload with submission_id, business_name, country
 - **analysis_completed** (analysing/[id]/page.tsx): Fired when Claude analysis finishes with score, verdict, verdict_type
 - **upgrade_viewed** (results/[id]/page.tsx): Fired when non-paid user sees paywall unlock UI (submission_id, score)
-- **upgrade_purchased** (thank-you/page.tsx): Fired once when payment confirmed (submission_id)
+- **upgrade_purchased** (thank-you/page.tsx): Fired once on arrival at the thank-you page, which Whop only redirects to after a completed checkout (submission_id, score, verdict, verdictType). Deliberately *not* gated on our own webhook — it used to be, so the step reported zero purchases for as long as the webhook was broken.
+- **purchase_unlock_confirmed** (thank-you/page.tsx): Fired when the Whop webhook has flipped `paid`. The gap between this and `upgrade_purchased` measures fulfilment; its absence means the webhook is failing.
 - Tracks complete user journey: submission → analysis → paywall → purchase
 
 ---
