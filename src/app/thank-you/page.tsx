@@ -13,30 +13,61 @@ function ThankYouInner() {
   const [unlocked, setUnlocked] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  useEffect(() => {
-    if (unlocked) {
-      posthog.capture("upgrade_purchased", { submission_id: submissionId });
-    }
-  }, [unlocked, submissionId]);
-
-  // Poll until the webhook has marked the submission as paid
+  // Poll until the webhook has marked the submission as paid. Keep the row so
+  // the purchase event can carry the score and verdict.
   useEffect(() => {
     if (!submissionId) { setChecking(false); return; }
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
+
+    // Whop only redirects here once a checkout has completed, so arriving on
+    // this page *is* the purchase. Record it now, before any polling: gating
+    // `upgrade_purchased` on our own webhook meant the last step of the funnel
+    // measured our plumbing rather than sales, and reported zero purchases for
+    // the whole time the webhook was failing.
+    let cancelled = false;
+    let reported = false;
+    const report = (event: string, row?: Record<string, unknown>) => {
+      posthog.capture(event, {
+        submission_id: submissionId,
+        score: row?.score,
+        verdict: row?.verdict,
+        verdictType: row?.verdict_type,
+      });
+    };
+
+    const poll = async (): Promise<boolean> => {
       try {
         const res = await fetch(`/api/status/${submissionId}`);
-        const data = await res.json();
-        if (data.paid) {
+        const row = await res.json();
+        if (cancelled) return true;
+        if (!reported) {
+          reported = true;
+          report("upgrade_purchased", row);
+        }
+        if (row.paid) {
           setUnlocked(true);
           setChecking(false);
-          clearInterval(interval);
+          // The gap between these two events is how long fulfilment took — and
+          // its absence is how we would notice the webhook breaking again.
+          report("purchase_unlock_confirmed", row);
+          return true;
         }
-      } catch { /* ignore */ }
-      if (attempts >= 20) { setChecking(false); clearInterval(interval); }
+      } catch { /* a failed poll just means trying again */ }
+      return false;
+    };
+
+    let attempts = 0;
+    void poll();
+    const interval = setInterval(async () => {
+      attempts++;
+      if (await poll()) { clearInterval(interval); return; }
+      if (attempts >= 20) {
+        setChecking(false);
+        if (!reported) { reported = true; report("upgrade_purchased"); }
+        clearInterval(interval);
+      }
     }, 2000);
-    return () => clearInterval(interval);
+
+    return () => { cancelled = true; clearInterval(interval); };
   }, [submissionId]);
 
   return (

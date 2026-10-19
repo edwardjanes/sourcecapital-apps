@@ -564,6 +564,8 @@ function ResultsPageInner() {
           posthog.capture("upgrade_viewed", {
             submission_id: d.id,
             score: d.score,
+            verdict: d.verdict,
+            verdictType: d.verdict_type,
           });
         }
         setTimeout(() => setAnimated(true), 100);

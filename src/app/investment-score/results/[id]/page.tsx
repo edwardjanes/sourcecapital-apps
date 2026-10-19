@@ -582,7 +582,12 @@ function ResultsPageInner() {
         setTimeout(() => setAnimated(true), 100);
         posthog.capture("results_viewed", { score: d.score, verdict_type: d.verdict_type, paid: d.paid });
         if (!d.paid) {
-          posthog.capture("upgrade_viewed", { submission_id: d.id, score: d.score });
+          posthog.capture("upgrade_viewed", {
+            submission_id: d.id,
+            score: d.score,
+            verdict: d.verdict,
+            verdictType: d.verdict_type,
+          });
         }
       })
       .catch(() => setLoading(false));
