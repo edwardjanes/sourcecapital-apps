@@ -204,30 +204,16 @@ export async function POST(req: NextRequest) {
     `[whop/webhook] Marked submission ${submissionId} paid via ${matchedBy} (order: ${orderId ?? "—"})`
   );
 
-  // The $97 community subscription grants ongoing access, so it also moves the
-  // profile's plan. Service-role writes are exempt from the trigger that stops
-  // browser clients editing privileged profile columns.
+  // Deliberately not touching `profiles.plan` here. plan_J7CPhtS9G5ffD is the
+  // $29.99/month community subscription, and `profiles.plan = 'pro'` is what
+  // lifts the free-analysis limit in /api/submit — so flipping it on a
+  // community purchase would quietly ship the unlimited product nobody has
+  // decided to sell. The payload is kept in `whop_webhook_events`, so this can
+  // be added once that call is made.
   if (planIdFrom(data) === COMMUNITY_PLAN_ID) {
-    const email = payerEmail ?? submission?.email ?? null;
-    if (email) {
-      const { data: userId } = await supabaseAdmin.rpc("user_id_for_email", {
-        lookup_email: email,
-      });
-      if (userId) {
-        const { error: planError } = await supabaseAdmin
-          .from("profiles")
-          .update({ plan: "pro", crm_access: true })
-          .eq("id", userId);
-        if (planError) {
-          Sentry.captureException(new Error(`profiles plan update failed: ${planError.message}`), {
-            tags: { context: "whop_webhook" },
-            extra: { email, submissionId },
-          });
-        }
-      } else {
-        console.warn(`[whop/webhook] No auth user for ${email} — plan not upgraded`);
-      }
-    }
+    console.log(
+      `[whop/webhook] Community subscription for ${payerEmail ?? "unknown"} — profile entitlements left unchanged`
+    );
   }
 
   await recordEvent({
