@@ -30,10 +30,10 @@ function UpsellInner() {
     ? `/results/${submissionId}`
     : thankYouUrl;
 
-  const communityUrl = `https://whop.com/checkout/${COMMUNITY_PLAN_ID}/?${new URLSearchParams({
-    ...(submissionId ? { "metadata[submission_id]": submissionId } : {}),
-    redirect_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.sourcecapital.co.uk"}${thankYouUrl}`,
-  }).toString()}`;
+  // Routed through our own endpoint so the submission id is attached to a
+  // Whop checkout configuration rather than a query param the current API
+  // no longer documents.
+  const communityUrl = `/api/whop/checkout?plan=community${submissionId ? `&submission_id=${encodeURIComponent(submissionId)}` : ""}`;
 
   const handleAccept = () => {
     posthog.capture("upsell_accepted", { plan: COMMUNITY_PLAN_ID });
