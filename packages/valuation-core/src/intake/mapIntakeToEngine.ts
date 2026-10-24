@@ -132,6 +132,8 @@ const num = (v: unknown): number | undefined => {
   const n = typeof v === 'number' ? v : Number(String(v).replace(/[,\s]/g, ''));
   return Number.isFinite(n) ? n : undefined;
 };
+/** The intake's number parser, exported so the E2 modules read answers exactly as the mapping does. */
+export const parseIntakeNumber = num;
 const atLeast = (v: unknown, threshold: number): boolean | undefined => {
   const n = num(v);
   return n === undefined ? undefined : n >= threshold;

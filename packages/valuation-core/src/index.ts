@@ -25,3 +25,18 @@ export * from './data-as-of';
 export * from './intake/fields';
 export * from './intake/mapIntakeToEngine';
 export * from './intake/suggestStage';
+
+// E2: TheAngel modules.
+export * from './angel/context';
+export * from './angel/pipeline';
+export * from './angel/core';
+export * from './angel/runAngelValuation';
+export * from './checks/required';
+export * from './checks/qualitative';
+export * from './checks/evaluateChecks';
+export * from './quality/qualityScore';
+export * from './optimise/types';
+export * from './optimise/headroom';
+export * from './optimise/rules';
+export * from './optimise/buildActions';
+export * from './optimise/simulate';
