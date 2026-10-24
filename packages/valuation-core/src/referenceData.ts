@@ -176,7 +176,7 @@ export function getCountryDataTier(country: string | undefined | null): CountryD
  * every sector, which is what makes the 15.4%-vs-46.6% class of defect
  * unrepeatable rather than merely fixed.
  */
-const SECTOR_SOURCE = {
+export const SECTOR_SOURCE = {
   // Damodaran industry, its EV/Sales and EV/EBITDA, and the firm count behind it.
   SaaS:        { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25 },
   Fintech:     { industry: 'Software (System & Application)', evSales: 11.41, evEbitda: 24.48, firms: 309, beta: 1.28, unleveredBeta: 1.25,
@@ -385,7 +385,7 @@ const normaliseIndustry = (raw: string) => raw.toLowerCase().replace(/[^a-z0-9]/
  * mappings: where a term spans sectors (say "platform", or "tech"), it is left
  * out so the company falls back visibly rather than being placed by guesswork.
  */
-const INDUSTRY_ALIASES: Record<string, keyof typeof INDUSTRIES> = {
+export const INDUSTRY_ALIASES: Record<string, keyof typeof INDUSTRIES> = {
   software: 'SaaS', b2bsaas: 'SaaS', b2csaas: 'SaaS', enterprisesoftware: 'SaaS',
   saas: 'SaaS', cloudsoftware: 'SaaS', softwareasaservice: 'SaaS',
   ai: 'AI_ML', aiml: 'AI_ML', artificialintelligence: 'AI_ML', machinelearning: 'AI_ML',

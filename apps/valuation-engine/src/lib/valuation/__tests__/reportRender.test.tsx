@@ -2,15 +2,13 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReportClient from "@/app/companies/[id]/report/[snapshotId]/ReportClient";
-import { computeValuation } from "../compute";
-import { computeSensitivity } from "../sensitivity";
-import { buildDefaultParameters } from "../defaults";
+import { computeValuation, computeSensitivity, buildDefaultParameters } from "@edwardjanes/valuation-core";
 import {
   NORTHWIND_COMPANY,
   NORTHWIND_FINANCIALS,
   NORTHWIND_BALANCE_SHEET,
   NORTHWIND_QUESTIONNAIRE,
-} from "./fixtures/northwind";
+} from "../../../../../../packages/valuation-core/src/__tests__/fixtures/northwind";
 
 /**
  * Renders the client report for real, against both snapshot shapes.

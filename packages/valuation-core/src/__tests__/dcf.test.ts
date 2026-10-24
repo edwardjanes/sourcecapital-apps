@@ -639,7 +639,7 @@ describe("DCF-LTG — divergences that are not arithmetic", () => {
     // skipped rather than failed when only this repo is checked out (CI).
     const { readFileSync, existsSync } = await import("node:fs");
     const specPath = new URL(
-      "../../../../../../../raise-hq-portal/claude/valuation methods/" +
+      "../../../../../raise-hq-portal/claude/valuation methods/" +
         "DCF with Long-Term Growth Valuation.md",
       import.meta.url
     );

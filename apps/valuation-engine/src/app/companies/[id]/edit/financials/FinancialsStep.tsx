@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { C, FONT_SANS, FONT_MONO } from '@/lib/theme';
-import { ValidationIssue, fieldIssue, financialFieldKey } from '@/lib/valuation/validation';
+import { ValidationIssue, fieldIssue, financialFieldKey } from '@edwardjanes/valuation-core';
 
 interface FinancialsStepProps {
   company: any;

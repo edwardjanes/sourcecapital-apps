@@ -3,8 +3,10 @@
 #
 # This repository holds two Vercel projects: deck-analysis-app is the Next.js app
 # at the REPOSITORY ROOT (serving app.sourcecapital.co.uk), and valuation-engine
-# builds from apps/valuation-engine. Neither imports from the other, so a commit
-# touching only apps/ cannot change what deck-analysis-app ships. Before this
+# builds from apps/valuation-engine. Neither imports from the other, and neither
+# does the deck app import packages/ (valuation-core, consumed by the engine from
+# GitHub Packages), so a commit touching only apps/ or packages/ cannot change
+# what deck-analysis-app ships. Before this
 # existed every such commit rebuilt it anyway -- fourteen wasted builds on
 # 27 Sep 2026 alone, which is what exhausted the build quota.
 #
@@ -31,12 +33,12 @@ if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
 fi
 
 # ':(top)' makes the pathspec repo-root-relative whatever directory Vercel runs
-# this from; ':(top,exclude)apps' drops the sibling Vercel project.
-if git diff --quiet "$base" HEAD -- ':(top)' ':(top,exclude)apps'; then
-  echo "Nothing outside apps/ changed between $(git rev-parse --short "$base") and $(git rev-parse --short HEAD) - skipping build."
+# this from; the excludes drop the sibling Vercel project and the packages.
+if git diff --quiet "$base" HEAD -- ':(top)' ':(top,exclude)apps' ':(top,exclude)packages'; then
+  echo "Nothing outside apps/ or packages/ changed between $(git rev-parse --short "$base") and $(git rev-parse --short HEAD) - skipping build."
   exit 0
 fi
 
-echo "Changed outside apps/ - building:"
-git diff --name-only "$base" HEAD -- ':(top)' ':(top,exclude)apps'
+echo "Changed outside apps/ and packages/ - building:"
+git diff --name-only "$base" HEAD -- ':(top)' ':(top,exclude)apps' ':(top,exclude)packages'
 exit 1
