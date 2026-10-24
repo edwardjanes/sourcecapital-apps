@@ -16,7 +16,7 @@ import {
   validateBalanceSheet,
   validateQuestionnaire,
   hasBlockingIssues,
-} from '@/lib/valuation/validation';
+} from '@edwardjanes/valuation-core';
 
 type WizardStep = 'profile' | 'questionnaire' | 'financials' | 'captable' | 'comparables' | 'parameters';
 

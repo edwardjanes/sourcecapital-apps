@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { computeValuation } from '@/lib/valuation/compute';
-import { computeSensitivity } from '@/lib/valuation/sensitivity';
-import { buildDefaultParameters } from '@/lib/valuation/defaults';
-import { validateWizardData, hasBlockingIssues } from '@/lib/valuation/validation';
+import { computeValuation } from '@edwardjanes/valuation-core';
+import { computeSensitivity } from '@edwardjanes/valuation-core';
+import { buildDefaultParameters } from '@edwardjanes/valuation-core';
+import { validateWizardData, hasBlockingIssues } from '@edwardjanes/valuation-core';
 import { renderAndUploadReportPdf } from '@/lib/valuation/pdf';
-import { getCurrencyForCountry, getCountryDataTier } from '@/lib/valuation/referenceData';
-import { getDataQualityDisclaimer } from '@/lib/valuation/dataQualityDisclaimer';
-import type { CompanyStage } from '@/lib/valuation/types';
+import { getCurrencyForCountry, getCountryDataTier } from '@edwardjanes/valuation-core';
+import { getDataQualityDisclaimer } from '@edwardjanes/valuation-core';
+import type { CompanyStage } from '@edwardjanes/valuation-core';
 
 // Headless, service-key-protected compute + report route for n8n.
 //

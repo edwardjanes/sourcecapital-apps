@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { formatCurrency, formatPercent } from '@/lib/valuation/format';
-import { STAGE_DEFAULT_WEIGHTS, getCountryDataTier } from '@/lib/valuation/referenceData';
-import { getDataQualityDisclaimer } from '@/lib/valuation/dataQualityDisclaimer';
-import { buildDefaultParameters } from '@/lib/valuation/defaults';
+import { formatCurrency, formatPercent } from '@edwardjanes/valuation-core';
+import { STAGE_DEFAULT_WEIGHTS, getCountryDataTier } from '@edwardjanes/valuation-core';
+import { getDataQualityDisclaimer } from '@edwardjanes/valuation-core';
+import { buildDefaultParameters } from '@edwardjanes/valuation-core';
 import { ReportChart } from '../ReportChart';
 import '../report.css';
 

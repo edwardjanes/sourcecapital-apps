@@ -1,0 +1,60 @@
+name: valuation-core
+
+# Typecheck, test and build the package on every change to it. A tag
+# valuation-core@<version> also publishes it to GitHub Packages. (GitHub does
+# not evaluate path filters for tag pushes, so the tag always runs.)
+on:
+  push:
+    branches: ['**']
+    tags: ['valuation-core@*']
+    paths: ['packages/valuation-core/**', '.github/workflows/valuation-core.yml']
+  pull_request:
+    paths: ['packages/valuation-core/**', '.github/workflows/valuation-core.yml']
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: packages/valuation-core
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No lockfile: package-lock.json is gitignored repo-wide.
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Check dist has ESM, CJS and types
+        run: test -f dist/index.js && test -f dist/index.cjs && test -f dist/index.d.ts
+
+  publish:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/valuation-core@')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@edwardjanes'
+      - name: Tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#valuation-core@}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then echo "Tag $tag does not match package.json $version"; exit 1; fi
+      - run: npm install --no-audit --no-fund
+      # prepublishOnly runs typecheck, test and build again before publishing.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
