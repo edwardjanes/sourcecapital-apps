@@ -1,6 +1,6 @@
 'use client';
 
-import { formatCurrency } from '@/lib/valuation/format';
+import { formatCurrency } from '@edwardjanes/valuation-core';
 
 const CAT_COLORS = [
   'var(--cat-1)',

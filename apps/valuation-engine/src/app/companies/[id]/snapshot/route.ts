@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import * as Sentry from '@sentry/nextjs';
-import { computeValuation } from '@/lib/valuation/compute';
-import { buildDefaultParameters } from '@/lib/valuation/defaults';
-import { validateWizardData, hasBlockingIssues } from '@/lib/valuation/validation';
+import { computeValuation } from '@edwardjanes/valuation-core';
+import { buildDefaultParameters } from '@edwardjanes/valuation-core';
+import { validateWizardData, hasBlockingIssues } from '@edwardjanes/valuation-core';
 
 export async function POST(
   request: NextRequest,

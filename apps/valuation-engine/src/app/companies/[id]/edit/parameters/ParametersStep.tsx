@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { C, FONT_SANS, FONT_MONO } from '@/lib/theme';
-import { STAGE_DEFAULT_WEIGHTS } from '@/lib/valuation/referenceData';
+import { STAGE_DEFAULT_WEIGHTS } from '@edwardjanes/valuation-core';
 
 interface ParametersStepProps {
   company: any;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { C, FONT_SANS } from '@/lib/theme';
-import { ValidationIssue, fieldIssue } from '@/lib/valuation/validation';
+import { ValidationIssue, fieldIssue } from '@edwardjanes/valuation-core';
 
 interface ProfileStepProps {
   company: any;
