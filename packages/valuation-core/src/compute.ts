@@ -165,6 +165,35 @@ export async function computeValuation(
     applicability.checklist = { applicable: false, reason };
   }
 
+  // Audit item 2b (AUDIT-03-vc.md): a DCF whose terminal basis is zero or below
+  // surrenders its weight, as VC does when its round does not clear. Each DCF is
+  // judged on the figure its own terminal value is built from (Ed, 24 Oct 2026),
+  // not on one shared earnings line:
+  //   - DCF-LTG's terminal value is terminal net income grown in perpetuity
+  //     (the reinvestment form), so it is excluded when that net income is <= 0.
+  //     Averaging it in at 0 is the silent-zero path AUDIT-03 divergence 7 found.
+  //   - DCF-Multiple's terminal value is terminal revenue x an exit multiple.
+  //     AUDIT-05 keeps revenue as its metric precisely because startup EBITDA is
+  //     often negative, so it is excluded only when terminal revenue is <= 0.
+  if (lastFcfeYear && lastFcfeYear.netIncome <= 0) {
+    applicability.dcf_ltg = {
+      applicable: false,
+      reason:
+        `Terminal-year net income is ${Math.round(lastFcfeYear.netIncome).toLocaleString('en-GB')}, ` +
+        `and the long-term growth terminal value grows that figure in perpetuity. A perpetuity of a ` +
+        `loss is not a value, so the method is excluded rather than averaged in at zero.`,
+    };
+  }
+  if (lastFcfeYear && lastForecastRevenue <= 0) {
+    applicability.dcf_multiple = {
+      applicable: false,
+      reason:
+        `Terminal-year revenue is ${Math.round(lastForecastRevenue).toLocaleString('en-GB')}, and the ` +
+        `exit-multiple terminal value is that revenue times a multiple. With no terminal revenue there is ` +
+        `nothing to apply the multiple to, so the method is excluded rather than averaged in at zero.`,
+    };
+  }
+
   if (comparables.length === 0) {
     applicability.multiples = {
       applicable: false,
