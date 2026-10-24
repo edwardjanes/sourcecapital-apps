@@ -12,6 +12,11 @@ const NAMED = [
   'CHECKLIST_MAX_RATIO', 'SCORECARD_CRITERIA_WEIGHTS', 'LTG_GROWTH_RATE_DEFAULT', 'MIN_LTG_SPREAD',
   'ENGINE_VERSION', 'REFERENCE_DATA_AS_OF',
   'INTAKE_FORM_VERSION', 'INTAKE_STEPS', 'INTAKE_FIELDS', 'INTAKE_REQUIRED_COUNT', 'mapIntakeToEngine', 'suggestStage',
+  // E2
+  'runAngelValuation', 'evaluateChecks', 'hasBlockingChecks', 'computeQualityScore', 'applyRangeSpread', 'qualityLabel',
+  'buildActions', 'rankActions', 'simulate', 'applyCounterfactuals', 'computeHeadroom', 'OPTIMISE_RULES',
+  'OPTIMISE_RULESET_VERSION', 'EVIDENCE_KINDS', 'buildStageNote', 'snapshotParameters', 'runCore', 'runPipeline',
+  'hasStrongAnswers', 'requiredStatus', 'REVENUE_GROWTH_QUARTILES', 'RANGE_SPREAD_BY_LABEL', 'sourceOf', 'gridSourceKey',
 ] as const;
 
 describe('public exports', () => {
