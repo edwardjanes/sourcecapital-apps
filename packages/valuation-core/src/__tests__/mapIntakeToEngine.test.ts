@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { buildComputePayload } from './fixtures/portal/valuationPayload.js';
 import { mapIntakeToEngine, type IntakeFinancials } from '../intake/mapIntakeToEngine';
-import { INTAKE_FIELDS, INTAKE_STEPS, type IntakeAnswers } from '../intake/fields';
+import { INTAKE_FIELDS, INTAKE_REQUIRED_COUNT, INTAKE_STEPS, type IntakeAnswers } from '../intake/fields';
 import { computeValuation } from '../compute';
 import { buildDefaultParameters } from '../defaults';
 
@@ -209,12 +209,33 @@ describe('intake fields -- against the design pack', () => {
       })()
     : null;
 
-  it('has 59 fields across nine steps, the last two advisor only', () => {
-    expect(INTAKE_FIELDS).toHaveLength(59);
+  it('has 59 founder fields and 63 required answers, plus 2 advisor-only fields (61 in all)', () => {
+    const founderSteps = new Set<string>(INTAKE_STEPS.filter((s) => s.founderVisible).map((s) => s.id));
+    const founderFields = INTAKE_FIELDS.filter((f) => founderSteps.has(f.step));
+    expect(founderFields).toHaveLength(59);
+    expect(INTAKE_REQUIRED_COUNT).toBe(63);
+    expect(INTAKE_FIELDS).toHaveLength(61);
+    expect(INTAKE_FIELDS.filter((f) => !founderSteps.has(f.step)).map((f) => f.id)).toEqual(['comparables', 'advisor_overrides']);
+    // The two grid fields are the revenue and equity fundraising rows.
+    expect(founderFields.filter((f) => f.type === 'grid').map((f) => f.id)).toEqual(['revenue', 'fundraising_this_year']);
     expect(INTAKE_STEPS.map((s) => s.id)).toEqual([
       'company', 'team', 'business', 'product', 'financials', 'balance', 'funding', 'comparables', 'advisor_overrides',
     ]);
-    expect(INTAKE_STEPS.filter((s) => !s.founderVisible).map((s) => s.id)).toEqual(['comparables', 'advisor_overrides']);
+  });
+
+  it.runIf(pack)("INTAKE_REQUIRED_COUNT equals the design pack's own summarize() count", () => {
+    const summarize = (pack as unknown as { summarize: (mode: string) => { total: { req: number } } }).summarize;
+    expect(summarize('new').total.req).toBe(INTAKE_REQUIRED_COUNT);
+    expect(summarize('complete').total.req).toBe(INTAKE_REQUIRED_COUNT);
+  });
+
+  it('grid fields are not passed through to the questionnaire', () => {
+    const m = mapIntakeToEngine(
+      { company_name: 'X', country: 'United States', industry: 'SaaS', stage_of_development: 'startup', revenue: ['1', '2'], fundraising_this_year: ['0'] } as IntakeAnswers,
+      [{ revenue: '1' }], {}, { asOf: '2026-10-24', currency: 'USD' }
+    );
+    expect('revenue' in m.questionnaire).toBe(false);
+    expect('fundraising_this_year' in m.questionnaire).toBe(false);
   });
 
   it.runIf(pack)('every design pack field is defined with the same step, type, required flag and options', () => {

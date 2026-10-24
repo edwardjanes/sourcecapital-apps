@@ -170,6 +170,8 @@ const nonEmptyRows = (v: unknown): unknown[][] =>
 const NOT_PASSED_THROUGH = new Set<string>([
   'company_name', 'country', 'industry', 'stage_of_development', 'capital_needed_current_round',
   'comparables', 'advisor_overrides',
+  // Grid fields: their values reach the engine through `financials`.
+  'revenue', 'fundraising_this_year',
 ]);
 
 function buildQuestionnaire(

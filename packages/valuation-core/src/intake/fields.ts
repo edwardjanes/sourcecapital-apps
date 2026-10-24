@@ -36,7 +36,9 @@ export type IntakeFieldType =
   | 'repeat'
   | 'group'
   | 'comparables'
-  | 'weights';
+  | 'weights'
+  /** A financials grid row listed as a field: one value per grid column. */
+  | 'grid';
 
 export interface IntakeFieldDef {
   readonly id: string;
@@ -150,7 +152,12 @@ export const INTAKE_STEPS = [
   },
   {
     id: 'financials', title: 'Financial projections', short: 'Financials', minutes: 6, founderVisible: true,
-    fields: [],
+    // Revenue and equity fundraising are also listed as fields, so they count
+    // among the 59 founder fields. Their values are entered in the grid below.
+    fields: [
+      { id: 'revenue', label: 'Revenue', type: 'grid', required: true },
+      { id: 'fundraising_this_year', label: 'Equity fundraising in the year', type: 'grid', required: true },
+    ],
     grid: {
       // Base year (last actual) plus five forecast years.
       columns: 6,
@@ -215,6 +222,22 @@ export const INTAKE_FIELDS: readonly (IntakeFieldDef & { readonly step: IntakeSt
   (s.fields as readonly IntakeFieldDef[]).map((f) => ({ ...f, step: s.id }))
 );
 
+/**
+ * Required answers a founder must give, counted as the design pack's summarize()
+ * counts them: each required non-grid field once, and each required grid row
+ * once per column (revenue, debt_outstanding_year_end and fundraising_this_year,
+ * six years each). Advisor-only steps are not counted. 63 for v1.0.0.
+ */
+export const INTAKE_REQUIRED_COUNT: number = (INTAKE_STEPS as readonly IntakeStepDef[])
+  .filter((s) => s.founderVisible)
+  .reduce(
+    (n, s) =>
+      n +
+      s.fields.filter((f) => f.required && f.type !== 'grid').length +
+      (s.grid ? s.grid.rows.filter((r) => r.required).length * s.grid.columns : 0),
+    0
+  );
+
 export type IntakeStepId = (typeof INTAKE_STEPS)[number]['id'];
 type AnyField = (typeof INTAKE_STEPS)[number]['fields'][number];
 export type IntakeFieldId = AnyField['id'];
@@ -246,6 +269,8 @@ interface ValueByType {
   group: NumericInput[];
   comparables: { companyName?: string; multiple?: number; metricType?: 'revenue' | 'ebitda' }[];
   weights: Record<string, number>;
+  /** One cell per grid column. mapIntakeToEngine reads the grid from its `financials` argument, not from here. */
+  grid: (NumericInput | null)[];
 }
 
 /** Intake field id to its value. Every field is optional: an unanswered field is absent. */
