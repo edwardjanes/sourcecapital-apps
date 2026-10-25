@@ -83,6 +83,10 @@ export async function POST(req: NextRequest) {
         business_name: businessName,
         country,
         status:        AWAITING_UPLOAD,
+        // Without this every admin upload counts as a real customer submission
+        // in the funnel. See the backfill in
+        // supabase/migrations/20261019_backfill_admin_upload_flag.sql.
+        is_admin_upload: true,
       })
       .select("id")
       .single();
