@@ -1,12 +1,25 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
+import { deckCheckoutUrl, deckPrice, isOfferExpired } from "@/lib/whop";
 
 const GREEN = "#03fb83";
 const LOGO = "https://raw.githubusercontent.com/edwardjanes/source-capital/0147b27fad891686f67559992e43319411f07ba4/logo.png";
 const COMMUNITY_PLAN_ID = process.env.NEXT_PUBLIC_WHOP_COMMUNITY_PLAN_ID ?? "plan_J7CPhtS9G5ffD";
+// Must match what the plan above actually charges in Whop. Set
+// NEXT_PUBLIC_WHOP_COMMUNITY_PRICE if the Whop price changes, so the copy
+// can't drift from the real charge again.
+const COMMUNITY_PRICE = process.env.NEXT_PUBLIC_WHOP_COMMUNITY_PRICE ?? "$29.99";
+
+const REPORT_BULLETS = [
+  "Slide-by-slide assessment of every page investors will see",
+  "Your most damaging issue, named and explained",
+  "The highest-leverage fixes, in priority order",
+  "Full score breakdown across all 8 dimensions",
+  "The bottom-line verdict an investor would reach",
+];
 
 const BULLETS = [
   "Weekly live Q&A sessions with active investors",
@@ -22,6 +35,32 @@ function UpsellInner() {
   const submissionId = searchParams.get("submission_id") ?? "";
   const reason = searchParams.get("reason") ?? "community"; // "community" or "free_limit"
 
+  // For the free-limit variant we sell the full report for the deck they
+  // already analysed, so we need that submission's age (early vs full price)
+  // and whether they have already paid for it.
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [alreadyPaid, setAlreadyPaid] = useState(false);
+  const [loadingSubmission, setLoadingSubmission] = useState(reason === "free_limit" && !!submissionId);
+
+  useEffect(() => {
+    if (reason !== "free_limit" || !submissionId) return;
+    let cancelled = false;
+    fetch(`/api/status/${submissionId}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (cancelled || !data) return;
+        setCreatedAt(data.created_at ?? null);
+        setAlreadyPaid(!!data.paid);
+      })
+      .catch(() => { /* fall back to the early price */ })
+      .finally(() => { if (!cancelled) setLoadingSubmission(false); });
+    return () => { cancelled = true; };
+  }, [reason, submissionId]);
+
+  const expired = isOfferExpired(createdAt);
+  const reportPrice = deckPrice(expired);
+  const reportUrl = submissionId ? deckCheckoutUrl(submissionId, expired) : "";
+
   const thankYouUrl = submissionId
     ? `/thank-you?submission_id=${submissionId}`
     : "/thank-you";
@@ -35,9 +74,19 @@ function UpsellInner() {
     redirect_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.sourcecapital.co.uk"}${thankYouUrl}`,
   }).toString()}`;
 
+  // free_limit sells the one-time report plan; the community variant sells the
+  // recurring membership. They must never share a URL again.
+  const acceptUrl = reason === "free_limit"
+    ? (alreadyPaid ? `/investment-score/results/${submissionId}` : reportUrl)
+    : communityUrl;
+
   const handleAccept = () => {
-    posthog.capture("upsell_accepted", { plan: COMMUNITY_PLAN_ID });
-    window.location.href = communityUrl;
+    posthog.capture("upsell_accepted", {
+      plan: reason === "free_limit" ? "deck_report" : COMMUNITY_PLAN_ID,
+      price: reason === "free_limit" ? reportPrice : COMMUNITY_PRICE,
+      expired: reason === "free_limit" ? expired : undefined,
+    });
+    window.location.href = acceptUrl;
   };
 
   const handleDecline = () => {
@@ -75,7 +124,7 @@ function UpsellInner() {
               borderRadius: "20px", fontSize: "12px", fontWeight: 600,
               color: reason === "free_limit" ? "#F59E0B" : GREEN, letterSpacing: "0.06em", textTransform: "uppercase",
             }}>
-              {reason === "free_limit" ? "Unlock Unlimited Analyses" : "One-Time Offer — For New Members Only"}
+              {reason === "free_limit" ? "You've used your free analysis" : "One-Time Offer — For New Members Only"}
             </span>
           </div>
 
@@ -86,18 +135,18 @@ function UpsellInner() {
               : "Your deck is scored."}
             <br />
             {reason === "free_limit"
-              ? "Upgrade for unlimited decks."
+              ? "Unlock your full report."
               : "Now let&apos;s get it funded."}
           </h1>
           <p style={{ textAlign: "center", fontSize: "16px", color: "#9CA3AF", marginBottom: "32px", lineHeight: 1.7 }}>
             {reason === "free_limit"
-              ? "Analyze as many pitches as you want with unlimited deck analyses."
+              ? "Get the slide-by-slide breakdown, your most damaging issue and the highest-leverage fixes for the deck you already scored. "
               : ""}
             Join the Raise Launchpad — a private community of founders actively raising, with weekly investor access and everything you need to close your round.
           </p>
 
-          {/* Video */}
-          <div style={{
+          {/* Video — community pitch only */}
+          {reason !== "free_limit" && <div style={{
             borderRadius: "14px", overflow: "hidden", marginBottom: "32px",
             border: "1px solid #1E1E1E", background: "#111",
             position: "relative", paddingTop: "56.25%",
@@ -111,7 +160,7 @@ function UpsellInner() {
                 width: "100%", height: "100%",
               }}
             />
-          </div>
+          </div>}
 
           {/* Bullets */}
           <div style={{
@@ -119,10 +168,10 @@ function UpsellInner() {
             borderRadius: "14px", padding: "24px 28px", marginBottom: "28px",
           }}>
             <p style={{ fontSize: "13px", fontWeight: 600, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "16px" }}>
-              What&apos;s included
+              {reason === "free_limit" ? "What you unlock" : "What's included"}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {BULLETS.map((b, i) => (
+              {(reason === "free_limit" ? REPORT_BULLETS : BULLETS).map((b, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                   <div style={{
                     width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
@@ -144,46 +193,56 @@ function UpsellInner() {
             background: "#111111", border: `1px solid ${reason === "free_limit" ? "rgba(249,115,22,0.2)" : "rgba(3,251,131,0.2)"}`,
             borderRadius: "14px", padding: "28px", marginBottom: "16px", textAlign: "center",
           }}>
-            {reason === "free_limit" ? (
-              <>
-                <p style={{ fontSize: "13px", color: "#4B5563", marginBottom: "6px" }}>Unlimited analyses for</p>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
-                  <span style={{ fontSize: "48px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>$7</span>
-                  <span style={{ fontSize: "16px", color: "#6B7280" }}>one-time</span>
-                </div>
-                <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px" }}>Or $97 for the full Raise Launchpad (includes community + investor database)</p>
-              </>
+            {reason === "free_limit" && alreadyPaid ? (
+              <p style={{ fontSize: "15px", color: "#D1D5DB", marginBottom: "20px" }}>
+                You&apos;ve already unlocked this report.
+              </p>
             ) : (
+              // The price shown and the plan charged both come from `expired`
+              // (free_limit) or COMMUNITY_PRICE (community), so the page can
+              // never advertise a price the checkout doesn't charge.
               <>
-                <p style={{ fontSize: "13px", color: "#4B5563", marginBottom: "6px" }}>Join today for just</p>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
-                  <span style={{ fontSize: "48px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>$97</span>
-                  <span style={{ fontSize: "16px", color: "#6B7280" }}>/month</span>
-                </div>
+              <p style={{ fontSize: "13px", color: "#4B5563", marginBottom: "6px" }}>
+                {reason === "free_limit"
+                  ? (expired ? "Full report — full price" : "Full report, early access price")
+                  : "Join today for just"}
+              </p>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
+                <span style={{ fontSize: "48px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>
+                  {reason === "free_limit" ? reportPrice : COMMUNITY_PRICE}
+                </span>
+                <span style={{ fontSize: "16px", color: "#6B7280" }}>
+                  {reason === "free_limit" ? "one-time" : "/month"}
+                </span>
+              </div>
               </>
             )}
             <button
               onClick={handleAccept}
+              disabled={loadingSubmission}
               style={{
                 width: "100%", padding: "16px",
-                background: GREEN, color: "#000",
+                background: loadingSubmission ? "#2A2A2A" : GREEN,
+                color: loadingSubmission ? "#6B7280" : "#000",
                 border: "none", borderRadius: "10px",
                 fontSize: "16px", fontWeight: 700,
-                cursor: "pointer", marginBottom: "12px",
+                cursor: loadingSubmission ? "not-allowed" : "pointer", marginBottom: "12px",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
               }}
             >
-              {reason === "free_limit"
-                ? "Upgrade Now — $7 Unlimited"
-                : "Yes — Add Raise Launchpad Access"}
+              {loadingSubmission
+                ? "Loading…"
+                : reason === "free_limit"
+                  ? (alreadyPaid ? "View My Full Report" : `Unlock My Full Report — ${reportPrice}`)
+                  : "Yes — Add Raise Launchpad Access"}
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M3 8h10M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
             <p style={{ fontSize: "12px", color: "#4B5563" }}>
               {reason === "free_limit"
-                ? "Use your existing analysis + analyze unlimited decks"
-                : "Cancel any time. No lock-in."}
+                ? (alreadyPaid ? "" : "One-time payment for this deck's full report. No subscription.")
+                : `Recurring monthly subscription at ${COMMUNITY_PRICE}/month. Cancel any time. No lock-in.`}
             </p>
           </div>
 

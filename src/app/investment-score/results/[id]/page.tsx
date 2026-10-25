@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { DeckAnalysis, SlideAssessment } from "@/lib/deckPrompt";
 import posthog from "posthog-js";
 import { pixel } from "@/lib/fpixel";
+import { DECK_EARLY_PRICE, DECK_FULL_PRICE, OFFER_WINDOW_MS, deckCheckoutUrl, isOfferExpired } from "@/lib/whop";
 
 interface SubmissionResult {
   id: string;
@@ -31,19 +32,9 @@ const CARD_BORDER = "#242424";
 const MUTED = "#6B7280";
 const LOGO = "https://raw.githubusercontent.com/edwardjanes/source-capital/0147b27fad891686f67559992e43319411f07ba4/logo.png";
 
-function checkoutUrl(submissionId: string): string {
-  const planId = process.env.NEXT_PUBLIC_WHOP_PLAN_ID ?? "plan_AUP8u87FOYnEZ";
-  return `https://whop.com/checkout/${planId}/?${new URLSearchParams({ "metadata[submission_id]": submissionId }).toString()}`;
-}
-
-function fullCheckoutUrl(submissionId: string): string {
-  const planId = process.env.NEXT_PUBLIC_WHOP_PLAN_ID_PRO ?? "plan_7LlelIvBnFah9";
-  return `https://whop.com/checkout/${planId}/?${new URLSearchParams({ "metadata[submission_id]": submissionId }).toString()}`;
-}
-
-function isExpired(createdAt: string): boolean {
-  return Date.now() > new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
-}
+const checkoutUrl = (submissionId: string) => deckCheckoutUrl(submissionId, false);
+const fullCheckoutUrl = (submissionId: string) => deckCheckoutUrl(submissionId, true);
+const isExpired = (createdAt: string) => isOfferExpired(createdAt);
 
 function captureCheckout(score?: number) {
   posthog.capture("checkout_initiated", { score });
@@ -422,9 +413,8 @@ function SlideBySlideTab({ a, paid, buyHref }: { a: DeckAnalysis; paid: boolean;
 }
 
 // ── Countdown timer ────────────────────────────────────────────
-const OFFER_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-const EARLY_PRICE = "$7";
-const FULL_PRICE = "$97";
+const EARLY_PRICE = DECK_EARLY_PRICE;
+const FULL_PRICE = DECK_FULL_PRICE;
 
 function useCountdown(createdAt: string) {
   const expiry = new Date(createdAt).getTime() + OFFER_WINDOW_MS;

@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { DeckAnalysis, SlideAssessment } from "@/lib/deckPrompt";
 import posthog from "posthog-js";
+import { DECK_EARLY_PRICE, DECK_FULL_PRICE, OFFER_WINDOW_MS, deckCheckoutUrl, isOfferExpired } from "@/lib/whop";
 
 interface SubmissionResult {
   id: string;
@@ -30,10 +31,9 @@ const CARD_BORDER = "#242424";
 const MUTED = "#6B7280";
 const LOGO = "https://raw.githubusercontent.com/edwardjanes/source-capital/0147b27fad891686f67559992e43319411f07ba4/logo.png";
 
-function checkoutUrl(submissionId: string): string {
-  const planId = process.env.NEXT_PUBLIC_WHOP_PLAN_ID ?? "plan_AUP8u87FOYnEZ";
-  return `https://whop.com/checkout/${planId}/?${new URLSearchParams({ "metadata[submission_id]": submissionId }).toString()}`;
-}
+// Charges the plan that matches the price on screen: the legacy page used to
+// show the full price after 24h while still linking the early-price plan.
+const checkoutUrl = (submissionId: string, expired = false) => deckCheckoutUrl(submissionId, expired);
 
 // ── Score circle ──────────────────────────────────────────────
 function ScoreCircle({ score, animated }: { score: number; animated: boolean }) {
@@ -407,9 +407,8 @@ function SlideBySlideTab({ a, paid, buyHref }: { a: DeckAnalysis; paid: boolean;
 }
 
 // ── Countdown timer ────────────────────────────────────────────
-const OFFER_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-const EARLY_PRICE = "$7";
-const FULL_PRICE = "$97";
+const EARLY_PRICE = DECK_EARLY_PRICE;
+const FULL_PRICE = DECK_FULL_PRICE;
 
 function useCountdown(createdAt: string) {
   const expiry = new Date(createdAt).getTime() + OFFER_WINDOW_MS;
@@ -558,7 +557,7 @@ function ResultsPageInner() {
       .then(d => {
         setData(d);
         setLoading(false);
-        setBuyHref(checkoutUrl(d.id));
+        setBuyHref(checkoutUrl(d.id, isOfferExpired(d.created_at)));
         setCreatedAt(d.created_at);
         if (!d.paid) {
           posthog.capture("upgrade_viewed", {
