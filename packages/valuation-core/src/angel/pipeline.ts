@@ -57,7 +57,11 @@ export function buildParameters(ctx: ValuationContext, mapped: MappedEngineInput
   if (ctx.replayParameters) {
     return { profile, parameters: cloneData(ctx.replayParameters), overridesApplied: [] as AppliedOverride[] };
   }
-  const defaults = buildDefaultParameters(profile, mapped.financials as FinancialYear[], mapped.balanceSheet);
+  // The run's currency, not the country's: a benchmark or size band in another
+  // currency is converted into it (fx.ts), or reported as a mismatch.
+  const defaults = buildDefaultParameters(profile, mapped.financials as FinancialYear[], mapped.balanceSheet, {
+    currency: ctx.opts.currency,
+  });
   const parameters: UpdatedValuationParameters = cloneData({
     ...defaults,
     method_weights: (mapped.weights as UpdatedValuationParameters['method_weights']) || defaults.method_weights,

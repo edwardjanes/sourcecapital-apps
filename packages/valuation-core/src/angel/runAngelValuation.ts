@@ -20,11 +20,29 @@ export interface ParameterValue {
   asOf: string | null;
 }
 
+/** One currency conversion a run made, as stored. A replay uses these numbers, never the live FX table. */
+export interface FxSnapshotEntry {
+  /** What was converted: the benchmark pre-money, or last actual revenue for the size-premium band lookup. */
+  applies: 'benchmark_pre_money' | 'size_band_revenue';
+  from: string;
+  to: string;
+  rate: number;
+  rateAsOf: string;
+  source: string;
+  kind: 'reference' | 'pegged';
+  /** The amount before conversion, in `from`. */
+  original: number;
+  /** The amount after conversion, in `to`. */
+  converted: number;
+}
+
 export interface ParametersSnapshot {
   /** Every parameter exactly as used. Pass back as `ctx.replayParameters` to recompute the run. */
   parameters: UpdatedValuationParameters;
   /** The numeric parameters flattened, each with its dataset's as-of date. */
   values: ParameterValue[];
+  /** Every conversion the run made. Empty when every figure was already in the run's currency. */
+  fx: FxSnapshotEntry[];
 }
 
 export interface AngelValuationResult {
@@ -104,7 +122,33 @@ function asOfFor(path: string, parameters: UpdatedValuationParameters): string |
     return parameters.benchmark_resolution?.benchmark?.asOf ?? null;
   }
   if (path === 'dcf_ltg.survival_rates' || path === 'dcf_multiple.survival_rates') return REFERENCE_DATA_AS_OF.survivalCurves;
+  if (path === 'discount_rate_build_up.sizeBandFx.rate') return parameters.discount_rate_build_up?.sizeBandFx?.rateAsOf ?? null;
   return null;
+}
+
+/** The conversions recorded on the parameters, flattened for the snapshot. */
+export function fxEntries(parameters: UpdatedValuationParameters): FxSnapshotEntry[] {
+  const out: FxSnapshotEntry[] = [];
+  const fx = parameters.benchmark_resolution?.converted ? parameters.benchmark_resolution.fx : undefined;
+  if (fx) {
+    out.push({
+      applies: 'benchmark_pre_money',
+      from: fx.from, to: fx.to, rate: fx.rate, rateAsOf: fx.rateAsOf, source: fx.source, kind: fx.kind,
+      original: fx.originalMedian,
+      converted: fx.convertedMedian,
+    });
+  }
+  const band = parameters.discount_rate_build_up;
+  if (band?.sizeBandFx) {
+    const b = band.sizeBandFx;
+    out.push({
+      applies: 'size_band_revenue',
+      from: b.from, to: b.to, rate: b.rate, rateAsOf: b.rateAsOf, source: b.source, kind: b.kind,
+      original: band.lastYearRevenue,
+      converted: band.sizeBandRevenue ?? band.lastYearRevenue,
+    });
+  }
+  return out;
 }
 
 export function snapshotParameters(parameters: UpdatedValuationParameters): ParametersSnapshot {
@@ -122,7 +166,7 @@ export function snapshotParameters(parameters: UpdatedValuationParameters): Para
     }
   };
   walk(parameters, '');
-  return { parameters: JSON.parse(JSON.stringify(parameters)), values };
+  return { parameters: JSON.parse(JSON.stringify(parameters)), values, fx: fxEntries(parameters) };
 }
 
 /**

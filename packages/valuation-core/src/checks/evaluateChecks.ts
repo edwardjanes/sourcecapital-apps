@@ -7,6 +7,7 @@ import { validateWizardData } from '../validation';
 import { deriveFcfeByYear } from '../fcf';
 import { getCountryDataTier } from '../referenceData';
 import { REFERENCE_DATA_AS_OF } from '../data-as-of';
+import { FX_STALE_DAYS, formatAsOfDate } from '../fx';
 import { mapIntakeToEngine, parseIntakeNumber as num } from '../intake/mapIntakeToEngine';
 import { suggestStage, type ProductRollout } from '../intake/suggestStage';
 import type { CompanyStage } from '../types';
@@ -74,7 +75,27 @@ export const REFERENCE_DATASET_LABELS: Record<string, string> = {
   pitchbookNvca: 'US round valuations',
   britishBusinessBank: 'UK round valuations',
   survivalCurves: 'start-up survival rates',
+  fxRates: 'exchange rates',
 };
+
+/** The real names of the datasets behind REFERENCE_DATA_AS_OF, for parameter_stale. */
+export const REFERENCE_DATASET_NAMES: Record<string, string> = {
+  riskFreeRates: 'Trading Economics 10-year government bond yields',
+  countryEquityRiskPremiums: 'Damodaran country risk premiums',
+  damodaranIndustryRows: 'Damodaran industry multiples and betas',
+  fxRates: 'ECB euro reference exchange rates',
+};
+
+/** One dataset a run used, with the rule it is judged stale by. */
+export interface UsedDataset {
+  /** A REFERENCE_DATA_AS_OF key, or `benchmark` for the resolved benchmark cell. */
+  key: string;
+  name: string;
+  asOf: string;
+  /** `months`: STALE_AFTER_MONTHS. `fx_days`: FX_STALE_DAYS. */
+  rule: 'months' | 'fx_days';
+  stale: boolean;
+}
 
 const DCF_LABEL = { dcf_ltg: 'DCF with long-term growth', dcf_multiple: 'DCF with exit multiple' } as const;
 
@@ -83,14 +104,75 @@ function parseAsOf(v: string): Date {
   return new Date(/^\d{4}-\d{2}$/.test(v) ? `${v}-01T00:00:00Z` : `${v.slice(0, 10)}T00:00:00Z`);
 }
 
-/** The oldest dated reference dataset, and the datasets with no date. */
-export function referenceDataAge(asOf: string) {
-  const dated = Object.entries(REFERENCE_DATA_AS_OF).filter(([, v]) => v !== null) as [string, string][];
-  const undated = Object.entries(REFERENCE_DATA_AS_OF).filter(([, v]) => v === null).map(([k]) => k);
-  const oldest = dated.reduce((a, b) => (parseAsOf(a[1]) <= parseAsOf(b[1]) ? a : b));
+function isStale(date: string, asOf: string, rule: UsedDataset['rule']): boolean {
   const cutoff = parseAsOf(asOf);
-  cutoff.setUTCMonth(cutoff.getUTCMonth() - STALE_AFTER_MONTHS);
-  return { oldestDataset: oldest[0], oldestDate: oldest[1], stale: parseAsOf(oldest[1]) < cutoff, undated };
+  if (rule === 'fx_days') cutoff.setUTCDate(cutoff.getUTCDate() - FX_STALE_DAYS);
+  else cutoff.setUTCMonth(cutoff.getUTCMonth() - STALE_AFTER_MONTHS);
+  return parseAsOf(date) < cutoff;
+}
+
+/**
+ * The datasets this run actually used: the risk-free rate and country risk
+ * premium, the industry rows, the resolved benchmark cell (when Scorecard or
+ * Checklist carried weight), and the FX table when a conversion was made. Dates
+ * come from the report (the resolution and the build-up), so a replayed run is
+ * judged on the rates it stored. Undated datasets (survival curves) are left out.
+ */
+export function datasetsUsed(report: ValuationReportOutput, asOf: string): UsedDataset[] {
+  const out: UsedDataset[] = [];
+  const add = (key: string, name: string, date: string | null, rule: UsedDataset['rule']) => {
+    if (date) out.push({ key, name, asOf: date, rule, stale: isStale(date, asOf, rule) });
+  };
+  add('riskFreeRates', REFERENCE_DATASET_NAMES.riskFreeRates, REFERENCE_DATA_AS_OF.riskFreeRates, 'months');
+  add('countryEquityRiskPremiums', REFERENCE_DATASET_NAMES.countryEquityRiskPremiums, REFERENCE_DATA_AS_OF.countryEquityRiskPremiums, 'months');
+  add('damodaranIndustryRows', REFERENCE_DATASET_NAMES.damodaranIndustryRows, REFERENCE_DATA_AS_OF.damodaranIndustryRows, 'months');
+
+  const resolution = report.benchmarkResolution;
+  const benchmarkWeight = report.perMethod
+    .filter((m) => m.method === 'scorecard' || m.method === 'checklist')
+    .reduce((sum, m) => sum + m.effectiveWeight, 0);
+  const cell = resolution?.benchmark;
+  if (cell && benchmarkWeight > 0) add('benchmark', cell.dataset ?? cell.source, cell.asOf, 'months');
+
+  const fxDates = [
+    cell && benchmarkWeight > 0 && resolution?.converted ? resolution.fx?.rateAsOf : undefined,
+    report.discountRateBuildUp?.sizeBandFx?.rateAsOf,
+  ].filter((d): d is string => !!d);
+  if (fxDates.length) {
+    const oldestFx = fxDates.reduce((a, b) => (parseAsOf(a) <= parseAsOf(b) ? a : b));
+    add('fxRates', REFERENCE_DATASET_NAMES.fxRates, oldestFx, 'fx_days');
+  }
+  return out;
+}
+
+/**
+ * The oldest dated dataset and whether anything is stale.
+ *
+ * With a report, only the datasets that run used (datasetsUsed), each on its own
+ * rule. Without one, every dated entry of REFERENCE_DATA_AS_OF, which is what
+ * 1.1.0 did for every run.
+ */
+export function referenceDataAge(asOf: string, report?: ValuationReportOutput) {
+  const undated = Object.entries(REFERENCE_DATA_AS_OF).filter(([, v]) => v === null).map(([k]) => k);
+  const used: UsedDataset[] = report
+    ? datasetsUsed(report, asOf)
+    : (Object.entries(REFERENCE_DATA_AS_OF).filter(([, v]) => v !== null) as [string, string][]).map(([key, date]) => {
+        const rule = key === 'fxRates' ? 'fx_days' : 'months';
+        return { key, name: REFERENCE_DATASET_NAMES[key] ?? REFERENCE_DATASET_LABELS[key] ?? key, asOf: date, rule, stale: isStale(date, asOf, rule) };
+      });
+  const oldestOf = (xs: UsedDataset[]) => xs.reduce((a, b) => (parseAsOf(a.asOf) <= parseAsOf(b.asOf) ? a : b));
+  const oldest = oldestOf(used);
+  const staleOnes = used.filter((d) => d.stale);
+  return {
+    oldestDataset: oldest.key,
+    oldestDate: oldest.asOf,
+    oldestName: oldest.name,
+    stale: staleOnes.length > 0,
+    /** The dataset the check names: the oldest stale one, else the oldest. */
+    named: staleOnes.length ? oldestOf(staleOnes) : oldest,
+    datasets: used,
+    undated,
+  };
 }
 
 /** The stage suggestStage gives for this context, or null when an input it needs is missing. */
@@ -291,13 +373,18 @@ export function evaluateChecks(ctx: ValuationContext, report: ValuationReportOut
     fixLabel: 'Verify traction',
   });
 
-  const age = referenceDataAge(ctx.opts.asOf);
+  const age = referenceDataAge(ctx.opts.asOf, report);
+  const named = age.named;
+  const onlyFxStale = age.stale && age.datasets.every((d) => !d.stale || d.rule === 'fx_days');
   checks.push({
     id: 'parameter_stale',
     severity: 'warning',
     passed: !age.stale,
-    title: 'Some market data is over a year old',
-    why: `The oldest dataset used here, ${REFERENCE_DATASET_LABELS[age.oldestDataset] ?? age.oldestDataset}, dates from ${age.oldestDate}.`,
+    title: onlyFxStale ? `The exchange rates used here are over ${FX_STALE_DAYS} days old` : 'Some market data is over a year old',
+    why:
+      named.rule === 'fx_days' && named.stale
+        ? `The exchange rates used here, the ${named.name}, date from ${formatAsOfDate(named.asOf)}.`
+        : `The oldest dataset used here, the ${named.name}, dates from ${formatAsOfDate(named.asOf)}.`,
     fieldRoute: { kind: 'none' },
     fixLabel: 'No action needed',
   });

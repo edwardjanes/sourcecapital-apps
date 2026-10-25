@@ -73,7 +73,9 @@ export function computeQualityScore(ctx: ValuationContext, checks: CheckResult[]
   const failedWarnings = checks.filter((c) => c.severity === 'warning' && c.passed === false).length;
   const consistency = Math.max(0, QUALITY_MAX.consistency - WARNING_PENALTY * failedWarnings);
 
-  const referenceFresh = !referenceDataAge(ctx.opts.asOf).stale;
+  // The same judgement as parameter_stale: only the datasets this run used.
+  const staleCheck = checks.find((c) => c.id === 'parameter_stale');
+  const referenceFresh = staleCheck ? staleCheck.passed !== false : !referenceDataAge(ctx.opts.asOf).stale;
   const days = ctx.facts.lastUpdateAgeDays;
   const updateFresh = typeof days === 'number' && days < UPDATE_FRESH_DAYS;
   const freshness = referenceFresh && updateFresh ? 10 : referenceFresh || updateFresh ? 5 : 0;

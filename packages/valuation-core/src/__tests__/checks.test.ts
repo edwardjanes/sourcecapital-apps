@@ -8,6 +8,7 @@ import type { ValuationReportOutput } from '../types';
 import type { ValuationContext } from '../angel/context';
 import { readyNorthwind } from './fixtures/contexts';
 import { northwindContext, NORTHWIND_GRID } from './fixtures/northwindIntake';
+import { FX_RATES, FX_STALE_DAYS } from '../fx';
 
 let report: ValuationReportOutput;
 beforeAll(async () => {
@@ -189,14 +190,66 @@ describe('evaluateChecks', () => {
   });
 
   describe('parameter_stale', () => {
-    it('fails today: PitchBook-NVCA (2025-09-30) is the oldest dated dataset', () => {
+    // Since 1.2.0 the check judges only the datasets the run used. Northwind is at
+    // expansion, where Scorecard and Checklist carry 6% each, so its benchmark counts.
+    const runIn = async (country: string, currency: string, asOf = '2026-10-24') => {
+      const ctx = withAnswers({ country }, { ...readyNorthwind(), opts: { asOf, currency } });
+      return { ctx, report: (await runPipeline(ctx)).report };
+    };
+
+    it('a US run names PitchBook-NVCA (30 September 2025) and fails', async () => {
+      const { ctx, report: r } = await runIn('United States', 'USD');
+      expect(referenceDataAge(ctx.opts.asOf, r).named).toMatchObject({ key: 'benchmark', name: 'PitchBook-NVCA Venture Monitor', asOf: '2025-09-30', stale: true });
+      const c = check(ctx, 'parameter_stale', r);
+      expect(c.passed).toBe(false);
+      expect(c.why).toBe('The oldest dataset used here, the PitchBook-NVCA Venture Monitor, dates from 30 September 2025.');
+    });
+
+    it('a UK run names the British Business Bank figure, not the US one, and passes', async () => {
+      const { ctx, report: r } = await runIn('United Kingdom', 'GBP');
+      const c = check(ctx, 'parameter_stale', r);
+      expect(c.passed).toBe(true);
+      expect(c.why).toBe('The oldest dataset used here, the British Business Bank Small Business Equity Tracker, dates from 31 December 2025.');
+      expect(referenceDataAge(ctx.opts.asOf, r).datasets.map((d) => d.key)).not.toContain('pitchbookNvca');
+    });
+
+    it('a German run passes and names the oldest dataset it used', async () => {
+      const { ctx, report: r } = await runIn('Germany', 'EUR');
+      const c = check(ctx, 'parameter_stale', r);
+      expect(c.passed).toBe(true);
+      expect(c.why).toBe('The oldest dataset used here, the Damodaran country risk premiums, dates from January 2026.');
+    });
+
+    it('a converted run includes the FX table, judged on FX_STALE_DAYS', async () => {
+      const saved = FX_RATES.asOf;
+      try {
+        const fresh = await runIn('United Kingdom', 'USD');
+        const fx = referenceDataAge(fresh.ctx.opts.asOf, fresh.report).datasets.find((d) => d.key === 'fxRates')!;
+        expect(fx).toMatchObject({ asOf: saved, rule: 'fx_days', stale: false });
+
+        // An FX table more than 180 days before the run, everything else in date.
+        (FX_RATES as { asOf: string }).asOf = '2026-04-26';
+        const old = await runIn('United Kingdom', 'USD');
+        const c = check(old.ctx, 'parameter_stale', old.report);
+        expect(c.passed).toBe(false);
+        expect(c.title).toBe(`The exchange rates used here are over ${FX_STALE_DAYS} days old`);
+        expect(c.why).toBe('The exchange rates used here, the ECB euro reference exchange rates, date from 26 April 2026.');
+      } finally {
+        (FX_RATES as { asOf: string }).asOf = saved;
+      }
+    });
+
+    it('passes up to exactly 12 months, fails the day after (UK: BBB, 31 December 2025)', async () => {
+      const onTheDay = await runIn('United Kingdom', 'GBP', '2026-12-31');
+      expect(check(onTheDay.ctx, 'parameter_stale', onTheDay.report).passed).toBe(true);
+      const after = await runIn('United Kingdom', 'GBP', '2027-01-01');
+      expect(check(after.ctx, 'parameter_stale', after.report).passed).toBe(false);
+    });
+
+    it('without a report it still scans every dated dataset, as 1.1.0 did', () => {
       expect(referenceDataAge('2026-10-24')).toMatchObject({ oldestDataset: 'pitchbookNvca', oldestDate: '2025-09-30', stale: true });
-      expect(check(readyNorthwind(), 'parameter_stale').passed).toBe(false);
     });
-    it('passes up to exactly 12 months, fails the day after', () => {
-      expect(check({ ...readyNorthwind(), opts: { asOf: '2026-09-30', currency: 'GBP' } }, 'parameter_stale').passed).toBe(true);
-      expect(check({ ...readyNorthwind(), opts: { asOf: '2026-10-01', currency: 'GBP' } }, 'parameter_stale').passed).toBe(false);
-    });
+
     it('ignores datasets with no date, and lists them', () => {
       expect(referenceDataAge('2026-10-24').undated).toEqual(['survivalCurves']);
     });

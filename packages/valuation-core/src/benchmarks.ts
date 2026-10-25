@@ -22,10 +22,16 @@
  * that always says which rung it landed on. A founder benchmarked against a
  * global figure is told so.
  *
- * NO FX CONVERSION, consistent with the engine's standing decision (31 Aug 2026).
- * Each cell carries its own currency and the resolver reports a mismatch rather
- * than converting.
+ * CURRENCY. Each cell carries its own currency. When it differs from the run's
+ * currency, the resolver converts the cell into the run's currency at the dated,
+ * sourced rate held in fx.ts (ECB reference rates, or a cited official peg), and
+ * says so in the note and in `fx`. When no rate is held for the pair it reports
+ * the mismatch and does not convert. It never invents a rate. This reverses the
+ * 31 Aug 2026 "no FX conversion" decision for the mismatched case only, with Ed's
+ * approval (slice E3, 1.2.0); where the currencies match nothing changes.
  */
+
+import { convertAmount, describeConversion, type FxRateKind } from './fx';
 
 export type BenchmarkStage = 'pre_seed' | 'seed' | 'series_a' | 'series_b' | 'series_c_plus';
 
@@ -54,6 +60,8 @@ export interface ValuationBenchmark {
   basis: BenchmarkBasis;
   /** Specific enough to re-find: publication, table, period. */
   source: string;
+  /** Short name of the dataset, for the parameter_stale check's copy. */
+  dataset: string;
   /** ISO date of the underlying data, not of when it was entered. */
   asOf: string;
 }
@@ -104,17 +112,17 @@ export const VALUATION_BENCHMARKS: ValuationBenchmark[] = [
   {
     geography: 'US', stage: 'pre_seed', preMoney: { median: 7_700_000 }, currency: 'USD',
     basis: 'sourced', asOf: '2025-09-30',
-    source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median pre-seed pre-money valuation.',
+    dataset: 'PitchBook-NVCA Venture Monitor', source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median pre-seed pre-money valuation.',
   },
   {
     geography: 'US', stage: 'seed', preMoney: { median: 15_800_000 }, currency: 'USD',
     basis: 'sourced', asOf: '2025-09-30',
-    source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median seed pre-money valuation.',
+    dataset: 'PitchBook-NVCA Venture Monitor', source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median seed pre-money valuation.',
   },
   {
     geography: 'US', stage: 'series_a', preMoney: { median: 46_500_000 }, currency: 'USD',
     basis: 'sourced', asOf: '2025-09-30',
-    source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median Series A pre-money valuation.',
+    dataset: 'PitchBook-NVCA Venture Monitor', source: 'PitchBook-NVCA Venture Monitor, Q3 2025 — median Series A pre-money valuation.',
   },
 
   // --- United Kingdom. Seed only: the BBB and Beauhurst classify companies as
@@ -126,7 +134,7 @@ export const VALUATION_BENCHMARKS: ValuationBenchmark[] = [
     geography: 'GB', stage: 'seed',
     preMoney: { median: 3_200_000, mean: 6_000_000 }, currency: 'GBP',
     basis: 'sourced', asOf: '2025-12-31',
-    source: 'British Business Bank, Small Business Equity Tracker 2026 (2025 calendar year) — median UK seed pre-money £3.2m, mean £6.0m.',
+    dataset: 'British Business Bank Small Business Equity Tracker', source: 'British Business Bank, Small Business Equity Tracker 2026 (2025 calendar year) — median UK seed pre-money £3.2m, mean £6.0m.',
   },
 
   // --- Germany. Kept at its existing figure and marked `validated`: it is the one
@@ -137,31 +145,31 @@ export const VALUATION_BENCHMARKS: ValuationBenchmark[] = [
   {
     geography: 'DE', stage: 'seed', preMoney: { median: 6_107_000 }, currency: 'EUR',
     basis: 'validated', asOf: '2026-08-01',
-    source: 'Validated against a real Equidam sample valuation report. The only reproduction point this table has — re-validate before changing.',
+    dataset: 'Equidam sample valuation report (Germany)', source: 'Validated against a real Equidam sample valuation report. The only reproduction point this table has — re-validate before changing.',
   },
 
   // --- Europe, regional. Finer grain is not published.
   {
     geography: 'r:europe', stage: 'pre_seed', preMoney: { median: 3_480_000 }, currency: 'USD',
     basis: 'sourced', asOf: '2026-03-31',
-    source: 'Equidam, Q1 2026 — median European pre-seed valuation, reported in USD.',
+    dataset: 'Equidam European valuations, Q1 2026', source: 'Equidam, Q1 2026 — median European pre-seed valuation, reported in USD.',
   },
   {
     geography: 'r:europe', stage: 'seed', preMoney: { median: 5_600_000 }, currency: 'EUR',
     basis: 'sourced', asOf: '2025-03-31',
-    source: 'PitchBook European Venture Report, Q1 2025 — median European seed valuation.',
+    dataset: 'PitchBook European Venture Report', source: 'PitchBook European Venture Report, Q1 2025 — median European seed valuation.',
   },
 
   // --- Global, the last rung. Nothing falls through this.
   {
     geography: 'r:global', stage: 'pre_seed', preMoney: { median: 5_870_000 }, currency: 'USD',
     basis: 'sourced', asOf: '2026-03-31',
-    source: 'Equidam, Q1 2026 — global median pre-seed valuation.',
+    dataset: 'Equidam global valuations, Q1 2026', source: 'Equidam, Q1 2026 — global median pre-seed valuation.',
   },
   {
     geography: 'r:global', stage: 'seed', preMoney: { median: 5_600_000 }, currency: 'EUR',
     basis: 'modelled', asOf: '2025-03-31',
-    source: 'No global seed median is published. Carries the European figure, which is the more conservative of the two regions with data, rather than inventing one.',
+    dataset: 'PitchBook European Venture Report', source: 'No global seed median is published. Carries the European figure, which is the more conservative of the two regions with data, rather than inventing one.',
   },
   // NO global or European Series A cell, deliberately.
   //
@@ -187,20 +195,51 @@ export type BenchmarkRung =
   | 'stage_global'
   | 'none';
 
+/** How a converted benchmark was converted. Stored on the resolution, so a replay never reads the live table. */
+export interface BenchmarkFx {
+  from: string;
+  to: string;
+  /** Units of `to` per 1 unit of `from`, at full precision. */
+  rate: number;
+  rateAsOf: string;
+  source: string;
+  kind: FxRateKind;
+  originalMedian: number;
+  originalMean?: number;
+  originalCurrency: string;
+  convertedMedian: number;
+}
+
 export interface BenchmarkResolution {
+  /**
+   * The cell as used. When `converted`, its median (and mean) are already in the
+   * run's currency and `currency` is the run's; the cell as published is in `fx`.
+   */
   benchmark: ValuationBenchmark | null;
   /** Which rung matched, most specific first. */
   rung: BenchmarkRung;
   /** True when the match is not this company's own country. */
   substituted: boolean;
-  /** True when the cell's currency is not the company's own. Never converted. */
+  /**
+   * True when the cell's currency is not the run's and no rate is held to
+   * convert it. The figure is then used as published, so treat it as untrusted.
+   * False when the currencies match or the cell was converted.
+   */
   currencyMismatch: boolean;
+  /** True when the cell was converted into the run's currency. */
+  converted: boolean;
+  /** Present only when `converted`. */
+  fx?: BenchmarkFx;
   /** Plain-language line the report can print. */
   note: string;
 }
 
 /**
  * Resolve the benchmark for a company, and always say what was resolved.
+ *
+ * `currency` is the RUN's currency (the currency the report is in), not the
+ * country's. A cell in another currency is converted into it where fx.ts holds a
+ * rate for the pair, and reported as a mismatch where it does not.
  *
  * There is deliberately no silent `default` bucket: a founder in Nigeria
  * benchmarked against a global median should be TOLD that, which is a more honest
@@ -223,26 +262,61 @@ export function resolveBenchmark(args: {
     ['stage_global', find('r:global')],
   ];
 
-  for (const [rung, benchmark] of attempts) {
-    if (!benchmark) continue;
+  for (const [rung, cell] of attempts) {
+    if (!cell) continue;
     const substituted = rung !== 'stage_country';
-    const currencyMismatch = benchmark.currency !== args.currency;
     const where =
       rung === 'stage_country'
         ? `${args.countryCode} ${stage.replace('_', '-')} companies`
         : rung === 'stage_region'
-          ? `${benchmark.geography.replace('r:', '')} ${stage.replace('_', '-')} companies, as no ${args.countryCode} figure is published`
+          ? `${cell.geography.replace('r:', '')} ${stage.replace('_', '-')} companies, as no ${args.countryCode} figure is published`
           : `${stage.replace('_', '-')} companies globally, as neither a ${args.countryCode} nor a regional figure is published`;
+    const base = `Benchmarked against the median pre-money valuation of ${where}. ${cell.source}`;
+
+    if (cell.currency === args.currency) {
+      return { benchmark: cell, rung, substituted, currencyMismatch: false, converted: false, note: base };
+    }
+
+    const median = convertAmount({ amount: cell.preMoney.median, from: cell.currency, to: args.currency });
+    if (!median) {
+      return {
+        benchmark: cell,
+        rung,
+        substituted,
+        currencyMismatch: true,
+        converted: false,
+        note: `${base} Note this figure is quoted in ${cell.currency} and has not been converted to ${args.currency}.`,
+      };
+    }
+
+    const mean =
+      cell.preMoney.mean === undefined
+        ? undefined
+        : convertAmount({ amount: cell.preMoney.mean, from: cell.currency, to: args.currency })!.amount;
+    const fx: BenchmarkFx = {
+      from: cell.currency,
+      to: args.currency,
+      rate: median.rate,
+      rateAsOf: median.rateAsOf,
+      source: median.source,
+      kind: median.kind,
+      originalMedian: cell.preMoney.median,
+      ...(cell.preMoney.mean === undefined ? {} : { originalMean: cell.preMoney.mean }),
+      originalCurrency: cell.currency,
+      convertedMedian: median.amount,
+    };
     return {
-      benchmark,
+      benchmark: {
+        ...cell,
+        preMoney: { median: median.amount, ...(mean === undefined ? {} : { mean }) },
+        currency: args.currency,
+      },
       rung,
       substituted,
-      currencyMismatch,
-      note:
-        `Benchmarked against the median pre-money valuation of ${where}. ${benchmark.source}` +
-        (currencyMismatch
-          ? ` Note this figure is quoted in ${benchmark.currency} and has not been converted to ${args.currency}.`
-          : ''),
+      currencyMismatch: false,
+      converted: true,
+      fx,
+      note: `${base} The figure is quoted in ${cell.currency} and was ${describeConversion(fx)}.`,
     };
   }
 
@@ -251,6 +325,7 @@ export function resolveBenchmark(args: {
     rung: 'none',
     substituted: false,
     currencyMismatch: false,
+    converted: false,
     note: `No benchmark is published for ${stage.replace('_', '-')} companies at any level of geography.`,
   };
 }

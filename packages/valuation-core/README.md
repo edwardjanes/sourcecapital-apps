@@ -58,6 +58,29 @@ const run = await runAngelValuation(ctx);
 
 To recompute a stored run exactly, pass its `parametersSnapshot.parameters` back as `ctx.replayParameters`.
 
+## Currency
+
+The run's currency is `opts.currency` (or `buildDefaultParameters(profile, financials, balanceSheet, { currency })`; without it, the country's currency). A benchmark cell in another currency is converted into it, and the resolution says so:
+
+```ts
+run.report.benchmarkResolution
+// { converted: true, currencyMismatch: false,
+//   fx: { from: 'GBP', to: 'USD', rate: 1.33682..., rateAsOf: '2026-10-23', source: 'European Central Bank, ...',
+//         kind: 'reference', originalMedian: 3200000, originalMean: 6000000, originalCurrency: 'GBP', convertedMedian: 4277852.09... },
+//   note: '... The figure is quoted in GBP and was converted from GBP to USD at 1.3368 (ECB, 23 October 2026).' }
+```
+
+When `fx.ts` holds no rate for the pair, the cell is used as published with `converted: false` and `currencyMismatch: true`. Treat that as untrusted. Revenue is converted to USD for the size-premium band lookup in the same way (`discountRateBuildUp.sizeBandFx`). `run.parametersSnapshot.fx` lists every conversion with its rate, date, source, original and converted amount; a replay uses those, never the live table.
+
+### Refreshing the FX table
+
+1. Download the ECB daily file: https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml (or the CSV inside https://www.ecb.europa.eu/stats/eurofxref/eurofxref.zip). Never type a rate from memory.
+2. In `src/fx.ts`, copy each currency's rate into `FX_RATES.rates[code].perEur` exactly as published, and set `FX_RATES.asOf` to the file's reference date (the XML's `time`, the CSV's Date). Update the date in the comment above `FX_RATES`. Check the pegs (`kind: 'pegged'`) against their cited sources.
+3. Run `npm test`. `fx.test.ts` fails if a currency used by the benchmarks, the country table or the intake has neither a rate nor a reason in `FX_UNSUPPORTED`. The conversion tests in `fxConversion.test.ts` hard-code the 23 October 2026 rates and need the new ones.
+4. Bump the version and add a CHANGELOG entry: a new table changes every converted run.
+
+`parameter_stale` flags the table once it is more than `FX_STALE_DAYS` (180) days older than the run's as-of date.
+
 ### `ValuationContext`
 
 | Field | What it holds |
@@ -109,6 +132,7 @@ To recompute a stored run exactly, pass its `parametersSnapshot.parameters` back
   - `evaluateChecks`, `hasBlockingChecks`, `requiredStatus`, `hasStrongAnswers`, `REVENUE_GROWTH_QUARTILES`.
   - `computeQualityScore`, `applyRangeSpread`, `qualityLabel`, `RANGE_SPREAD_BY_LABEL`.
   - `OPTIMISE_RULES`, `OPTIMISE_RULESET_VERSION`, `EVIDENCE_KINDS`, `buildActions`, `rankActions`, `computeHeadroom`, `simulate`, `applyCounterfactuals`.
+- **Currency (1.2.0):** `convertAmount`, `isCurrencySupported`, `describeConversion`, `formatAsOfDate`, `FX_RATES`, `FX_UNSUPPORTED`, `FX_SOURCE_URL`, `FX_STALE_DAYS`, `SIZE_PREMIUM_BAND_CURRENCY`, `fxEntries`, `datasetsUsed`, and the types `FxTable`, `FxRate`, `FxConversion`, `BenchmarkFx`, `BenchmarkResolution`, `FxSnapshotEntry`, `UsedDataset`.
 - **Version:** `ENGINE_VERSION`.
 - Every type in `types.ts` and the modules above is exported too.
 
