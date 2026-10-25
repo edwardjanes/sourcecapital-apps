@@ -24,12 +24,23 @@ import {
   CHECKLIST_MAX_RATIO,
   type BenchmarkResolution,
 } from './benchmarks';
+import { convertAmount, type FxRateKind } from './fx';
+
+/** Currency the size-premium bands are really in: the Kroll/CRSP deciles behind them are US-listed companies, in USD. */
+export const SIZE_PREMIUM_BAND_CURRENCY = 'USD';
 
 export function buildDefaultParameters(
   profile: CompanyProfile,
   financials: FinancialYear[],
-  balanceSheet?: { non_operating_cash?: number }
+  balanceSheet?: { non_operating_cash?: number },
+  /**
+   * `currency` is the run's reporting currency, the currency the financials are
+   * in. When omitted it is the country's currency (getCurrencyForCountry), which
+   * is what the Raise HQ engine app reports in.
+   */
+  opts: { currency?: string } = {}
 ): UpdatedValuationParameters {
+  const runCurrency = opts.currency ?? getCurrencyForCountry(profile.country);
   // Look up country data from reference data
   const countryKey = resolveCountryCode(profile.country);
   const countryRef = COUNTRIES[countryKey];
@@ -93,7 +104,7 @@ export function buildDefaultParameters(
   const benchmark = resolveBenchmark({
     countryCode: countryKey,
     stage: profile.stage,
-    currency: getCurrencyForCountry(profile.country),
+    currency: runCurrency,
   });
   // ZERO when nothing resolves, NOT a fallback to the old country figure. A
   // Scorecard computed against a benchmark nobody published is the defect this
@@ -107,7 +118,16 @@ export function buildDefaultParameters(
   // understate risk". It covers SIZE ONLY -- failure risk is already carried by
   // the survival curve and illiquidity by ILLIQUIDITY_DISCOUNT_DEFAULT, and the
   // specs warn against counting either twice. See SIZE_PREMIUM_BANDS.
-  const sizePremium = resolveSizePremium(lastYearRevenue);
+  //
+  // The bands are in USD (SIZE_PREMIUM_BAND_CURRENCY), so revenue in another
+  // currency is converted for the band lookup only. When no rate is held, the
+  // revenue is compared as entered, which is what 1.1.0 did for every currency.
+  const bandFx =
+    runCurrency === SIZE_PREMIUM_BAND_CURRENCY
+      ? null
+      : convertAmount({ amount: lastYearRevenue, from: runCurrency, to: SIZE_PREMIUM_BAND_CURRENCY });
+  const sizeBandRevenue = bandFx ? bandFx.amount : lastYearRevenue;
+  const sizePremium = resolveSizePremium(sizeBandRevenue);
   const systematicRiskPremium = industryData.beta * countryData.equity_risk_premium;
   const discountRate = countryData.risk_free_rate + systematicRiskPremium + sizePremium.premium;
 
@@ -186,6 +206,17 @@ export function buildDefaultParameters(
       sizePremiumSource: sizePremium.source,
       sizeBandMinRevenue: sizePremium.bandMinRevenue,
       lastYearRevenue,
+      sizeBandRevenue,
+      sizeBandFx: bandFx
+        ? {
+            from: runCurrency,
+            to: SIZE_PREMIUM_BAND_CURRENCY,
+            rate: bandFx.rate,
+            rateAsOf: bandFx.rateAsOf,
+            source: bandFx.source,
+            kind: bandFx.kind as FxRateKind,
+          }
+        : null,
       discountRate,
     },
 

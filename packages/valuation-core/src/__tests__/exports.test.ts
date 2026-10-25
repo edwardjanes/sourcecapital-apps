@@ -16,6 +16,8 @@ const NAMED = [
   'runAngelValuation', 'evaluateChecks', 'hasBlockingChecks', 'computeQualityScore', 'applyRangeSpread', 'qualityLabel',
   'buildActions', 'rankActions', 'simulate', 'applyCounterfactuals', 'computeHeadroom', 'OPTIMISE_RULES',
   'OPTIMISE_RULESET_VERSION', 'EVIDENCE_KINDS', 'buildStageNote', 'snapshotParameters', 'runCore', 'runPipeline',
+  // E3
+  'convertAmount', 'isCurrencySupported', 'FX_RATES', 'FX_UNSUPPORTED', 'FX_STALE_DAYS', 'SIZE_PREMIUM_BAND_CURRENCY', 'fxEntries', 'datasetsUsed',
   'hasStrongAnswers', 'requiredStatus', 'REVENUE_GROWTH_QUARTILES', 'RANGE_SPREAD_BY_LABEL', 'sourceOf', 'gridSourceKey',
 ] as const;
 

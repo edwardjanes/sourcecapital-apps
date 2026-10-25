@@ -7,6 +7,7 @@ import { EVIDENCE_KINDS, OPTIMISE_RULESET_VERSION, type ActionItem } from '../op
 import { evaluateChecks, type CheckResult } from '../checks/evaluateChecks';
 import { buildParameters, runPipeline } from '../angel/pipeline';
 import { runCore } from '../angel/core';
+import { snapshotParameters } from '../angel/runAngelValuation';
 import { mapIntakeToEngine } from '../intake/mapIntakeToEngine';
 import type { ValuationReportOutput } from '../types';
 import type { ValuationContext } from '../angel/context';
@@ -123,6 +124,22 @@ describe('guardrails', () => {
       const cf = rule(code).counterfactual(ctx);
       const params = (c: ValuationContext) => buildParameters(c, mapIntakeToEngine(c.answers, c.financials, c.balance, c.opts)).parameters;
       expect(params(cf), code).toEqual(params(ctx));
+      // 1.2.0: the FX entries in the snapshot are identical before and after every counterfactual.
+      expect(snapshotParameters(params(cf)).fx, code).toEqual(snapshotParameters(params(ctx)).fx);
+    }
+  });
+
+  it('in a converted run (GB in USD) no counterfactual changes the FX entry or the converted benchmark', () => {
+    const params = (c: ValuationContext) => buildParameters(c, mapIntakeToEngine(c.answers, c.financials, c.balance, c.opts)).parameters;
+    for (const code of Object.keys(CASES)) {
+      if (code === 'confirm_stage') continue;
+      const ctx = { ...CASES[code].yes.ctx, opts: { ...CASES[code].yes.ctx.opts, currency: 'USD' } };
+      const before = snapshotParameters(params(ctx));
+      const after = snapshotParameters(params(rule(code).counterfactual(ctx)));
+      expect(before.fx.map((f) => f.applies), code).toContain('benchmark_pre_money');
+      expect(after.fx, code).toEqual(before.fx);
+      expect(after.parameters.scorecard, code).toEqual(before.parameters.scorecard);
+      expect(after.parameters.checklist, code).toEqual(before.parameters.checklist);
     }
   });
 

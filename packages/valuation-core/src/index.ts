@@ -3,6 +3,7 @@
 export * from './types';
 export * from './referenceData';
 export * from './benchmarks';
+export * from './fx';
 export * from './defaults';
 export * from './scoring';
 export * from './fcf';

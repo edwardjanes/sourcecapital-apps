@@ -95,8 +95,23 @@ export interface DiscountRateBuildUp {
   sizePremiumBasis: 'sourced' | 'modelled';
   sizePremiumSource: string;
   sizeBandMinRevenue: number;
-  /** The revenue the band was chosen on. */
+  /** Last actual revenue, in the run's currency. */
   lastYearRevenue: number;
+  /**
+   * The revenue the band was chosen on, in USD (the bands' currency). Equals
+   * `lastYearRevenue` when the run is in USD or no rate is held. Optional so
+   * parameters stored before 1.2.0 still type-check.
+   */
+  sizeBandRevenue?: number;
+  /** The conversion behind `sizeBandRevenue`, or null when none was made. */
+  sizeBandFx?: {
+    from: string;
+    to: string;
+    rate: number;
+    rateAsOf: string;
+    source: string;
+    kind: 'reference' | 'pegged';
+  } | null;
   /** riskFreeRate + systematicRiskPremium + sizePremium */
   discountRate: number;
 }

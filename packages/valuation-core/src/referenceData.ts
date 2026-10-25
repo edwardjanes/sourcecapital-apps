@@ -585,13 +585,16 @@ export const SURVIVAL_RATES_BY_COUNTRY: Partial<Record<keyof typeof COUNTRIES, n
  * `idea` against 36% at `expansion`, so the earliest companies lean on the
  * qualitative methods anyway.
  *
- * CURRENCY. Bands are in the company's own currency, matching the engine's
- * standing no-FX-conversion decision (31 Aug 2026). A EUR 1m company and a
- * GBP 1m company land in the same band; at these thresholds that is inside the
- * noise of the underlying data.
+ * CURRENCY. The bands are in USD. Their one anchor, the Kroll/CRSP decile
+ * premia, is measured on US-listed companies in USD, and the thresholds are a
+ * read of those deciles. Until 1.2.0 they were compared with revenue in the
+ * company's own currency (the 31 Aug 2026 no-FX decision), so a GBP 4.5m company
+ * sat in the bottom band although it is about USD 6.0m. Since 1.2.0
+ * buildDefaultParameters converts revenue to USD for the lookup when fx.ts holds
+ * a rate (SIZE_PREMIUM_BAND_CURRENCY), and compares it as entered when not.
  */
 export const SIZE_PREMIUM_BANDS: ReadonlyArray<{
-  /** Inclusive lower bound of last actual revenue, in the company's own currency. */
+  /** Inclusive lower bound of last actual revenue, in USD. */
   minRevenue: number;
   premium: number;
   basis: 'sourced' | 'modelled';
