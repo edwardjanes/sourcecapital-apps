@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { DeckAnalysis, SlideAssessment } from "@/lib/deckPrompt";
 import posthog from "posthog-js";
+import BookCallCta from "@/components/report/BookCallCta";
 import { pixel } from "@/lib/fpixel";
 
 interface SubmissionResult {
@@ -721,6 +722,11 @@ function ResultsPageInner() {
         </div>
       </div>
 
+      {/* ── BOOK A CALL (buyers: nothing left to compete with) ── */}
+      {paid && (
+        <BookCallCta submissionId={data.id} score={data.score} verdictType={data.verdict_type} paid={paid} />
+      )}
+
       {/* ── RAISE READINESS MESSAGE ── */}
       {!paid && (
         <div style={{ background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: "12px", padding: "16px 20px", marginBottom: "12px" }}>
@@ -752,6 +758,10 @@ function ResultsPageInner() {
       {activeTab === "Overview" && <OverviewTab a={a} paid={paid} buyHref={activeHref} fullBuyHref={fullBuyHref} createdAt={createdAt} slideCount={slideCount} />}
       {activeTab === "Breakdown" && <BreakdownTab a={a} animated={animated} paid={paid} buyHref={activeHref} />}
       {activeTab === "Slide by Slide" && <SlideBySlideTab a={a} paid={paid} buyHref={activeHref} />}
+
+      {/* ── BOOK A CALL (everyone else: below the report, so it does not
+           pull attention from the paid upgrade) ── */}
+      {!paid && <BookCallCta submissionId={data.id} score={data.score} verdictType={data.verdict_type} paid={paid} />}
 
     </div>
   );
